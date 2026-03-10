@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 300px;
+      padding: 15px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f9f9f9;
+    }
+    h3 {
+      margin-top: 0;
+      font-size: 16px;
+      color: #333;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+      word-break: break-all;
+    }
+    #status.success { color: #28a745; }
+    #status.error { color: #dc3545; }
+    .settings {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+    }
+    .settings label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .settings input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+    .settings button {
+      padding: 6px;
+      font-size: 11px;
+      background: #6c757d;
+    }
+    .settings button:hover {
+      background: #5a6268;
+    }
+  </style>
+</head>
+<body>
+  <h3>Page Scraper</h3>
+  <button id="scrapeBtn">Scrape Article</button>
+  <div id="status">Ready</div>
+
+  <div class="settings">
+    <label for="savePath">Save directory:</label>
+    <input type="text" id="savePath" placeholder="/path/to/save/directory">
+    <button id="savePathBtn">Update Path</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
