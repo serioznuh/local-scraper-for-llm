@@ -11,7 +11,8 @@ A Chrome extension that scrapes articles, job descriptions, recipes, Reddit post
 - **Custom save path** — files go to any directory on disk (not Chrome's Downloads folder) via a native messaging host
 - **Configurable from popup** — save directory editable at any time; no need to touch code
 - **Date-prefixed filenames** — `2026-03-09_article-title.md` prevents collisions
-- **Noise filtering** — removes ads, cookie banners, nav elements, and hidden responsive clones
+- **Noise filtering** — removes ads, cookie banners, nav elements, hidden responsive clones, and bot/moderator auto-replies
+- **Shadow DOM support** — captures content inside web components (e.g. Reddit's `<shreddit-post>`)
 
 ## Installation
 
@@ -75,6 +76,7 @@ Works well on: **articles**, **blog posts**, **job descriptions**, **event pages
 
 | Version | Changes |
 |---------|---------|
+| 2.3.0 | Reddit post body fix: shadow DOM traversal for web components + smarter drill-down; filters bot auto-replies (AutoModerator etc.) |
 | 2.2.1 | Fixed filename slug for non-Latin titles (Cyrillic, CJK, etc.) — uses Unicode-aware regex |
 | 2.2.0 | Image support — `<img>` preserved as Markdown links |
 | 2.1.0 | Fixed content duplication on responsive pages; sidebar exclusion via drill-down; improved author extraction (JSON-LD organizer/publisher) |

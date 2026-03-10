@@ -107,10 +107,15 @@
                 return "";
             }
         }
+        // Filter bot/moderator auto-replies (Reddit AutoModerator, GitHub bots, etc.)
+        if (nodeText.includes("I am a bot, and this action was performed automatically")) return "";
 
         // --- Process children ---
+        // Prefer shadow DOM for web components (e.g. Reddit's <shreddit-post>);
+        // light DOM childNodes traversal never enters shadow roots.
         let childText = "";
-        node.childNodes.forEach(child => {
+        const childSource = node.shadowRoot || node;
+        childSource.childNodes.forEach(child => {
             childText += htmlToMarkdown(child, false, indent);
         });
 
@@ -199,20 +204,24 @@
         }
     }
 
-    // Drill into the dominant child when one child holds >85% of the text.
-    // This strips layout wrappers and sidebar columns without touching real content.
+    // Drill into the dominant child when one child holds >85% of the text
+    // AND the other children are trivial (sidebar/wrapper pattern).
+    // Does NOT drill when multiple children have meaningful text — e.g. a Reddit page
+    // where the post body and comment thread are siblings; drilling would lose one.
     function drillDown(el) {
         const totalLen = (el.innerText || '').trim().length;
         if (totalLen === 0 || el.children.length === 0) return el;
 
-        let bestChild = null, bestLen = 0;
+        let bestChild = null, bestLen = 0, significantChildren = 0;
         for (const child of el.children) {
             const len = (child.innerText || '').trim().length;
             if (len > bestLen) { bestLen = len; bestChild = child; }
+            if (len > 150) significantChildren++;
         }
 
-        // Only descend when one child clearly dominates (sidebar/wrapper pattern)
-        if (bestChild && bestLen / totalLen > 0.85) return drillDown(bestChild);
+        // Only descend when one child clearly dominates AND others are trivial.
+        // If multiple children have real content, return the element as-is.
+        if (bestChild && bestLen / totalLen > 0.85 && significantChildren <= 1) return drillDown(bestChild);
         return el;
     }
 

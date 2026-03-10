@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local Scraper for LLM",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "Scrapes the current tab's article content and saves it as Markdown to a configurable directory.",
   "permissions": [
     "activeTab",
