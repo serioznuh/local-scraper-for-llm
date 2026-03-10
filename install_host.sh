@@ -1,12 +1,12 @@
 #!/bin/bash
-# Install native messaging host for Local Scraper for LLM extension.
+# Install native messaging host for Page Scraper extension.
 #
 # Usage: ./install_host.sh <chrome-extension-id>
 #
 # To find your extension ID:
 #   1. Open chrome://extensions
 #   2. Enable "Developer mode" (toggle in top-right)
-#   3. Find "Local Scraper for LLM" and copy the ID
+#   3. Find "Page Scraper" and copy the ID
 
 set -e
 
@@ -21,17 +21,34 @@ EXTENSION_ID="$1"
 HOST_NAME="com.scraper_llm.host"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST_SCRIPT="$SCRIPT_DIR/native-host/save_file.py"
+PYTHON_BIN="$(command -v python3 || true)"
 
-# Create a wrapper script at a space-free path, since Chrome's native
-# messaging cannot execute scripts whose path contains spaces.
+if [ -z "$PYTHON_BIN" ] && [ -x /usr/bin/python3 ]; then
+    PYTHON_BIN="/usr/bin/python3"
+fi
+
+if [ -z "$PYTHON_BIN" ]; then
+    echo "Python 3 not found."
+    exit 1
+fi
+
+# Create a wrapper and a runtime copy of the host script at space-free paths
+# outside Documents. Chrome-native processes can fail to execute files there
+# due to macOS privacy restrictions.
 WRAPPER_DIR="$HOME/.local/bin"
 WRAPPER_SCRIPT="$WRAPPER_DIR/scraper-llm-native-host"
+RUNTIME_DIR="$HOME/.local/share/scraper-llm-native-host"
+RUNTIME_SCRIPT="$RUNTIME_DIR/save_file.py"
 
 mkdir -p "$WRAPPER_DIR"
+mkdir -p "$RUNTIME_DIR"
+
+cp "$HOST_SCRIPT" "$RUNTIME_SCRIPT"
+chmod +x "$RUNTIME_SCRIPT"
 
 cat > "$WRAPPER_SCRIPT" << WRAPPER
 #!/bin/bash
-exec /usr/bin/env python3 "$HOST_SCRIPT"
+exec "$PYTHON_BIN" "$RUNTIME_SCRIPT"
 WRAPPER
 chmod +x "$WRAPPER_SCRIPT"
 chmod +x "$HOST_SCRIPT"
@@ -52,7 +69,7 @@ mkdir -p "$MANIFEST_DIR"
 cat > "$MANIFEST_DIR/$HOST_NAME.json" << EOF
 {
   "name": "$HOST_NAME",
-  "description": "Native messaging host for Local Scraper for LLM extension",
+  "description": "Native messaging host for Page Scraper extension",
   "path": "$WRAPPER_SCRIPT",
   "type": "stdio",
   "allowed_origins": ["chrome-extension://$EXTENSION_ID/"]
@@ -63,8 +80,10 @@ echo ""
 echo "Native messaging host installed successfully."
 echo ""
 echo "  Host name:    $HOST_NAME"
+echo "  Python:       $PYTHON_BIN"
 echo "  Wrapper:      $WRAPPER_SCRIPT"
-echo "  Script:       $HOST_SCRIPT"
+echo "  Runtime:      $RUNTIME_SCRIPT"
+echo "  Source:       $HOST_SCRIPT"
 echo "  Manifest:     $MANIFEST_DIR/$HOST_NAME.json"
 echo "  Extension ID: $EXTENSION_ID"
 echo ""

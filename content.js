@@ -9,6 +9,109 @@
         return text ? text.replace(/\s+/g, ' ').trim() : "";
     }
 
+    function normalizeText(text) {
+        return cleanText(text).toLowerCase();
+    }
+
+    function isVisibleElement(node) {
+        if (!node || node.nodeType !== 1) return false;
+        const cs = window.getComputedStyle(node);
+        return cs.display !== 'none' && cs.visibility !== 'hidden';
+    }
+
+    function getNodeDepth(el) {
+        let depth = 0;
+        let cursor = el.parentElement;
+        while (cursor && cursor !== document.body) {
+            depth++;
+            cursor = cursor.parentElement;
+        }
+        return depth;
+    }
+
+    function scoreNode(el) {
+        const textLen = (el.innerText || '').trim().length;
+        if (textLen < 50) return 0;
+
+        const childTexts = Array.from(el.children).map(c => (c.innerText || '').trim().length);
+        const maxChild = Math.max(0, ...childTexts);
+        const concentration = textLen > 0 ? maxChild / textLen : 1;
+        const depth = getNodeDepth(el);
+
+        return textLen * (1 - 0.85 * concentration) * Math.log2(depth + 2);
+    }
+
+    function normalizeTitle(title) {
+        let normalized = cleanText(title) || "Untitled";
+        if (isRedditPage()) {
+            normalized = normalized
+                .replace(/\s*:\s*r\/[^|]+$/i, '')
+                .replace(/\s*-\s*Reddit$/i, '')
+                .replace(/\s*\|\s*Reddit$/i, '')
+                .trim();
+        }
+        return normalized || "Untitled";
+    }
+
+    function isRedditPage() {
+        return window.location.hostname.includes('reddit.com');
+    }
+
+    function forEachElementIncludingShadow(root, visitor) {
+        function walk(node) {
+            if (!node) return;
+            if (node.nodeType === 9) {
+                walk(node.documentElement);
+                return;
+            }
+            if (node.nodeType === 11) {
+                Array.from(node.children || []).forEach(walk);
+                return;
+            }
+            if (node.nodeType !== 1) return;
+
+            visitor(node);
+
+            if (node.shadowRoot) {
+                walk(node.shadowRoot);
+            }
+
+            Array.from(node.children).forEach(walk);
+        }
+
+        walk(root);
+    }
+
+    function queryAllIncludingShadow(root, selector) {
+        const matches = [];
+        forEachElementIncludingShadow(root, el => {
+            if (el.matches(selector)) matches.push(el);
+        });
+        return matches;
+    }
+
+    function queryFirstIncludingShadow(root, selector) {
+        let match = null;
+        forEachElementIncludingShadow(root, el => {
+            if (!match && el.matches(selector)) match = el;
+        });
+        return match;
+    }
+
+    function closestCrossShadow(node, selector) {
+        let cur = node;
+        while (cur) {
+            if (cur.nodeType === 1 && cur.matches(selector)) return cur;
+            if (cur.parentElement) {
+                cur = cur.parentElement;
+                continue;
+            }
+            const root = cur.getRootNode ? cur.getRootNode() : null;
+            cur = root && root.host ? root.host : null;
+        }
+        return null;
+    }
+
     function parseMetadata() {
         const fullTitle = document.title || "Untitled";
         let title = fullTitle;
@@ -69,7 +172,7 @@
             if (byEl) author = byEl.innerText.trim().replace(/^by\s+/i, '').trim();
         }
 
-        return { title, author };
+        return { title: normalizeTitle(title), author };
     }
 
     function htmlToMarkdown(node, isRoot = false, indent = 0) {
@@ -80,10 +183,17 @@
         if (node.nodeType !== 1) return "";
 
         // Skip invisible elements — catches responsive duplicates (d-none, d-lg-none, etc.)
-        const cs = window.getComputedStyle(node);
-        if (cs.display === 'none' || cs.visibility === 'hidden') return "";
+        if (!isVisibleElement(node)) return "";
 
         const tag = node.tagName.toLowerCase();
+
+        if (tag === 'slot') {
+            const assigned = typeof node.assignedNodes === 'function'
+                ? node.assignedNodes({ flatten: true })
+                : [];
+            const slotChildren = assigned.length > 0 ? assigned : Array.from(node.childNodes);
+            return slotChildren.map(child => htmlToMarkdown(child, false, indent)).join('');
+        }
 
         // --- Noise removal (structural) ---
         const badTags = ['style', 'script', 'noscript', 'iframe', 'svg', 'nav', 'footer', 'aside', 'form', 'button'];
@@ -107,17 +217,22 @@
                 return "";
             }
         }
-        // Filter bot/moderator auto-replies (Reddit AutoModerator, GitHub bots, etc.)
-        if (nodeText.includes("I am a bot, and this action was performed automatically")) return "";
 
-        // --- Process children ---
-        // Prefer shadow DOM for web components (e.g. Reddit's <shreddit-post>);
-        // light DOM childNodes traversal never enters shadow roots.
         let childText = "";
-        const childSource = node.shadowRoot || node;
-        childSource.childNodes.forEach(child => {
-            childText += htmlToMarkdown(child, false, indent);
-        });
+        if (node.shadowRoot) {
+            node.shadowRoot.childNodes.forEach(child => {
+                childText += htmlToMarkdown(child, false, indent);
+            });
+            if (!childText.trim()) {
+                node.childNodes.forEach(child => {
+                    childText += htmlToMarkdown(child, false, indent);
+                });
+            }
+        } else {
+            node.childNodes.forEach(child => {
+                childText += htmlToMarkdown(child, false, indent);
+            });
+        }
 
         // Skip empty elements
         if (!childText.trim() && tag !== 'img' && tag !== 'hr' && tag !== 'br') return "";
@@ -204,40 +319,309 @@
         }
     }
 
-    // Drill into the dominant child when one child holds >85% of the text
-    // AND the other children are trivial (sidebar/wrapper pattern).
-    // Does NOT drill when multiple children have meaningful text — e.g. a Reddit page
-    // where the post body and comment thread are siblings; drilling would lose one.
+    // Drill into the dominant child when one child holds >85% of the text.
+    // This strips layout wrappers and sidebar columns without touching real content.
     function drillDown(el) {
         const totalLen = (el.innerText || '').trim().length;
         if (totalLen === 0 || el.children.length === 0) return el;
 
-        let bestChild = null, bestLen = 0, significantChildren = 0;
+        let bestChild = null, bestLen = 0;
         for (const child of el.children) {
             const len = (child.innerText || '').trim().length;
             if (len > bestLen) { bestLen = len; bestChild = child; }
-            if (len > 150) significantChildren++;
         }
 
-        // Only descend when one child clearly dominates AND others are trivial.
-        // If multiple children have real content, return the element as-is.
-        if (bestChild && bestLen / totalLen > 0.85 && significantChildren <= 1) return drillDown(bestChild);
+        const remainderLen = totalLen - bestLen;
+
+        // Only descend when one child clearly dominates and the discarded text
+        // is genuinely negligible. This avoids dropping lead sections such as
+        // Reddit self-post bodies that sit beside a large comments container.
+        if (bestChild && bestLen / totalLen > 0.92 && remainderLen < 220) return drillDown(bestChild);
         return el;
     }
 
+    function extractRedditLeadMarkdown() {
+        if (!isRedditPage()) return '';
+
+        const titleEl = document.querySelector('h1');
+        const mainEl = document.querySelector('main') || document.body;
+        if (!titleEl || !mainEl.contains(titleEl)) return '';
+
+        const blockTags = new Set(['p', 'blockquote', 'pre', 'ul', 'ol', 'figure', 'img']);
+        const stopSelectors = [
+            'textarea',
+            'input[placeholder*="Search"]',
+            'shreddit-comment',
+            'faceplate-comment',
+            '[data-testid="comment"]',
+            '[thingid^="t1_"]'
+        ].join(', ');
+        const blocks = [];
+        let started = false;
+
+        function hasCollectedAncestor(node) {
+            return blocks.some(block => block.contains(node));
+        }
+
+        function isStopNode(node) {
+            if (node.matches(stopSelectors)) return true;
+            const text = normalizeText(node.innerText || node.textContent || '');
+            const placeholder = normalizeText(node.getAttribute('placeholder') || '');
+            return text.includes('join the conversation') ||
+                   text.startsWith('sort by') ||
+                   text.includes('search comments') ||
+                   placeholder.includes('search comments');
+        }
+
+        const walker = document.createTreeWalker(mainEl, NodeFilter.SHOW_ELEMENT);
+        walker.currentNode = titleEl;
+
+        let node = walker.currentNode;
+        while ((node = walker.nextNode())) {
+            if (!isVisibleElement(node)) continue;
+            if (isStopNode(node)) break;
+            if (titleEl.contains(node) || node.contains(titleEl)) continue;
+
+            const tag = node.tagName.toLowerCase();
+            if (!blockTags.has(tag)) continue;
+            if (hasCollectedAncestor(node)) continue;
+
+            const text = cleanText(node.innerText || '');
+            const isLikelyMeta = /(^\d+\s*(mo|m|h|d|w|y)\s+ago$)|(^share$)|(^reply$)|(^award$)|(^vote$)/i.test(text);
+            if (tag !== 'img' && tag !== 'figure') {
+                if (!started && text.length < 8) continue;
+                if (isLikelyMeta) continue;
+                if (started && text.length < 2) continue;
+            }
+
+            blocks.push(node);
+            started = true;
+        }
+
+        return blocks
+            .map(block => htmlToMarkdown(block, false).trim())
+            .filter(Boolean)
+            .join('\n\n')
+            .trim();
+    }
+
+    function markdownIncludesSnippet(markdown, snippet) {
+        const stripMarkdown = text => normalizeText(
+            text
+                .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+                .replace(/\[[^\]]*]\([^)]+\)/g, ' ')
+                .replace(/[`*_>#-]+/g, ' ')
+        );
+
+        const snippetText = stripMarkdown(snippet);
+        const markdownText = stripMarkdown(markdown);
+        if (!snippetText) return true;
+        const probeBlocks = snippet
+            .split(/\n{2,}/)
+            .map(stripMarkdown)
+            .filter(block => block.length >= 10)
+            .slice(0, 4);
+
+        if (probeBlocks.length === 0) return markdownText.includes(snippetText.slice(0, 40));
+
+        const matches = probeBlocks.filter(block => markdownText.includes(block)).length;
+        return matches >= Math.min(2, probeBlocks.length);
+    }
+
+    function extractRedditCommentsMarkdown() {
+        if (!isRedditPage()) return '';
+        const rootEl = document;
+        const titleEl = document.querySelector('h1');
+        const commentContainerSelector = [
+            'shreddit-comment',
+            'faceplate-comment',
+            '[data-testid="comment"]',
+            '[thingid^="t1_"]'
+        ].join(', ');
+        const commentStartSelectors = [
+            'textarea',
+            'input[placeholder*="Search"]',
+            'input[placeholder*="Search Comments"]',
+            commentContainerSelector
+        ];
+        const commentStart = commentStartSelectors
+            .map(selector => queryFirstIncludingShadow(rootEl, selector))
+            .find(Boolean) ||
+            queryAllIncludingShadow(rootEl, 'div, span, h2').find(el => normalizeText(el.innerText || '').includes('join the conversation'));
+
+        const commentContainers = queryAllIncludingShadow(rootEl, commentContainerSelector)
+            .filter(el => isVisibleElement(el))
+            .filter(el => !titleEl || !el.contains(titleEl));
+
+        function queryWithinComment(container, selector) {
+            return queryAllIncludingShadow(container, selector)
+                .filter(node => closestCrossShadow(node, commentContainerSelector) === container);
+        }
+
+        function filterOutNestedNodes(nodes) {
+            return nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
+        }
+
+        function isAfterCommentStart(el) {
+            if (!commentStart) return true;
+            if (el === commentStart) return true;
+            return Boolean(el.compareDocumentPosition(commentStart) & Node.DOCUMENT_POSITION_PRECEDING);
+        }
+
+        return commentContainers
+            .filter(isAfterCommentStart)
+            .map(container => {
+                const authorCandidates = queryWithinComment(
+                    container,
+                    'a[href*="/user/"], a[href*="/u/"], [data-testid="comment_author_link"], [slot*="author"]'
+                );
+                const authorEl = authorCandidates.find(el => cleanText(el.textContent || '').length > 0);
+                const attrUser = cleanText(
+                    container.getAttribute('author') ||
+                    container.getAttribute('data-author') ||
+                    container.dataset?.author ||
+                    ''
+                );
+                const user = cleanText(authorEl ? authorEl.textContent : attrUser);
+                if (!user || /^(automoderator|\[deleted]|deleted|\[removed]|removed)$/i.test(user)) return null;
+
+                const bodyNodes = filterOutNestedNodes(queryWithinComment(
+                    container,
+                    'p, blockquote, pre, ul, ol, figure, img, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
+                ));
+                const body = bodyNodes
+                    .map(node => htmlToMarkdown(node, false).trim())
+                    .filter(Boolean)
+                    .join('\n\n')
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim();
+
+                if (!body || /i am a bot, and this action was performed automatically/i.test(body)) return null;
+                return { user, body };
+            })
+            .filter(Boolean)
+            .map(comment => `---\n\n## ${comment.user}\n\n${comment.body}`)
+            .join('\n\n')
+            .trim();
+    }
+
+    function extractRedditCommentsFromMarkdown(fullMarkdown) {
+        if (!isRedditPage() || !fullMarkdown) return '';
+
+        const markerCandidates = ['Join the conversation', 'Sort by:', 'Open comment sort options'];
+        const markerIndex = markerCandidates
+            .map(marker => fullMarkdown.indexOf(marker))
+            .filter(index => index !== -1)
+            .sort((a, b) => a - b)[0];
+
+        if (markerIndex === undefined) return '';
+
+        const comments = [];
+        const lines = fullMarkdown.slice(markerIndex).split('\n');
+        let currentUser = '';
+        let bodyLines = [];
+
+        function flushCurrent() {
+            if (!currentUser) return;
+
+            const body = bodyLines
+                .join('\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            const isNoiseUser = /^(automoderator|\[deleted]|deleted|\[removed]|removed)$/i.test(currentUser);
+            const isBotBody = /i am a bot, and this action was performed automatically/i.test(body);
+            if (!isNoiseUser && !isBotBody && body) {
+                comments.push({ user: currentUser, body });
+            }
+
+            currentUser = '';
+            bodyLines = [];
+        }
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) {
+                if (bodyLines.length > 0 && bodyLines[bodyLines.length - 1] !== '') bodyLines.push('');
+                continue;
+            }
+
+            if (line.includes('Join the conversation') || line.startsWith('Sort by:') || line.includes('Open comment sort options')) continue;
+            if (line.startsWith('[More replies]')) {
+                flushCurrent();
+                continue;
+            }
+            if (line.startsWith('[![') || /avatar/i.test(line)) continue;
+            if (/^(share|reply|award|vote)$/i.test(line)) continue;
+            if (/^\d+\s+(share|reply|award|vote)\b/i.test(line)) continue;
+
+            const userMatch = line.match(/^\[([^\]]+)\]\((?:https?:\/\/(?:www\.)?reddit\.com)?\/user\/[^)]+\)\s*(.*)$/);
+            if (userMatch) {
+                flushCurrent();
+                currentUser = cleanText(userMatch[1]);
+                const inlineBody = cleanText(userMatch[2] || '');
+                if (inlineBody) bodyLines.push(inlineBody);
+                continue;
+            }
+
+            if (!currentUser) continue;
+            if (/^•\s*\[[^\]]+\]\(\/r\/.*\/comment\//.test(line)) continue;
+            if (/^•\s*edited\b/i.test(line)) continue;
+
+            bodyLines.push(line);
+        }
+
+        flushCurrent();
+
+        return comments
+            .map(comment => `---\n\n## ${comment.user}\n\n${comment.body}`)
+            .join('\n\n')
+            .trim();
+    }
+
+    function buildRedditMarkdown(fullMarkdown) {
+        const redditLead = extractRedditLeadMarkdown();
+        const redditComments = extractRedditCommentsMarkdown() || extractRedditCommentsFromMarkdown(fullMarkdown);
+
+        if (redditLead || redditComments) {
+            return [redditLead, redditComments].filter(Boolean).join('\n\n').trim();
+        }
+
+        return fullMarkdown;
+    }
+
     function findArticleNode() {
+        if (isRedditPage()) {
+            return document.body;
+        }
+
         // Try semantic selectors — pick the one with the most text content
         // (don't just return the first match; e.g. <article> can be a sidebar card)
-        const candidates = ['article', 'main', '[role="main"]', '.post-content', '.article-body', '.entry-content', '.event-content', '.event-description'];
+        const candidates = [
+            'article',
+            'main',
+            '[role="main"]',
+            '.post-content',
+            '.article-body',
+            '.entry-content',
+            '.event-content',
+            '.event-description'
+        ];
         let bestSemantic = null;
-        let bestSemanticLen = 0;
+        let bestSemanticScore = 0;
         for (let selector of candidates) {
-            const el = document.querySelector(selector);
-            if (!el) continue;
-            const len = (el.innerText || '').trim().length;
-            if (len > bestSemanticLen) { bestSemanticLen = len; bestSemantic = el; }
+            const els = Array.from(document.querySelectorAll(selector));
+            for (const el of els) {
+                const len = (el.innerText || '').trim().length;
+                if (len < 200) continue;
+                const score = scoreNode(el);
+                if (score > bestSemanticScore) {
+                    bestSemanticScore = score;
+                    bestSemantic = el;
+                }
+            }
         }
-        if (bestSemantic && bestSemanticLen > 200) return drillDown(bestSemantic);
+        if (bestSemantic) return drillDown(bestSemantic);
 
         // Fallback: score all block elements by text volume, DOM depth,
         // and a concentration penalty (avoids picking wrappers where all
@@ -249,19 +633,7 @@
         for (let el of els) {
             const textLen = (el.innerText || '').trim().length;
             if (textLen < 300) continue;
-
-            // DOM depth — prefer specific inner elements over root wrappers
-            let depth = 0;
-            let cursor = el.parentElement;
-            while (cursor && cursor !== document.body) { depth++; cursor = cursor.parentElement; }
-
-            // Concentration ratio: if >85% of text is in one child, it's a wrapper
-            const childTexts = Array.from(el.children).map(c => (c.innerText || '').length);
-            const maxChild = Math.max(0, ...childTexts);
-            const concentration = textLen > 0 ? maxChild / textLen : 1;
-
-            // Score: reward text volume and depth, penalise wrappers
-            const score = textLen * (1 - 0.85 * concentration) * Math.log2(depth + 2);
+            const score = scoreNode(el);
 
             if (score > bestScore) {
                 bestScore = score;
@@ -286,10 +658,25 @@ SOURCE: ${window.location.href}
 `;
 
         let markdown = htmlToMarkdown(articleNode, true);
+        if (isRedditPage()) {
+            markdown = buildRedditMarkdown(markdown);
+        } else {
+            const redditLead = extractRedditLeadMarkdown();
+            if (redditLead && !markdownIncludesSnippet(markdown, redditLead)) {
+                markdown = `${redditLead}\n\n${markdown.trim()}`;
+            }
+        }
 
         // Cleanup: remove site-specific footer
         const footerIndex = markdown.indexOf("Reporting a Problem");
         if (footerIndex !== -1) markdown = markdown.substring(0, footerIndex);
+
+        if (isRedditPage()) {
+            markdown = markdown
+                .replace(/^\s*Join the conversation\s*$/gmi, '')
+                .replace(/^\s*Sort by:\s*.*$/gmi, '')
+                .replace(/^\s*Search Comments\s*$/gmi, '');
+        }
 
         // Remove footnote references
         markdown = markdown.replace(/^\[#.*$/gm, '');

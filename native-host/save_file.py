@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native messaging host for Local Scraper for LLM extension.
+"""Native messaging host for Page Scraper extension.
 
 Receives file content from the Chrome extension via native messaging protocol
 and writes it to a specified directory on disk.
