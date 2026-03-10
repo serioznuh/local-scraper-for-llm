@@ -76,7 +76,7 @@ Works well on: **articles**, **blog posts**, **job descriptions**, **event pages
 
 | Version | Changes |
 |---------|---------|
-| 2.4.0 | Rebranded extension to Page Scraper; improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
+| 2.4.0 | Improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
 | 2.2.1 | Fixed filename slug for non-Latin titles (Cyrillic, CJK, etc.) — uses Unicode-aware regex |
 | 2.2.0 | Image support — `<img>` preserved as Markdown links |
 | 2.1.0 | Fixed content duplication on responsive pages; sidebar exclusion via drill-down; improved author extraction (JSON-LD organizer/publisher) |
