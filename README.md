@@ -75,6 +75,7 @@ Works well on: **articles**, **blog posts**, **job descriptions**, **event pages
 
 | Version | Changes |
 |---------|---------|
+| 2.2.1 | Fixed filename slug for non-Latin titles (Cyrillic, CJK, etc.) — uses Unicode-aware regex |
 | 2.2.0 | Image support — `<img>` preserved as Markdown links |
 | 2.1.0 | Fixed content duplication on responsive pages; sidebar exclusion via drill-down; improved author extraction (JSON-LD organizer/publisher) |
 | 2.0.0 | Custom save path via native messaging host; background service worker; configurable popup; date-prefixed filenames; better article detection |

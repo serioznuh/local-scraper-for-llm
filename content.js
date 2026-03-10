@@ -297,7 +297,11 @@ SOURCE: ${window.location.href}
 
         // Filename with date prefix to prevent collisions
         const dateStr = new Date().toISOString().slice(0, 10);
-        const slug = title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
+        const slug = title
+            .replace(/[^\p{L}\p{N}]+/gu, '_')  // keep Unicode letters & numbers (Cyrillic, Latin, etc.)
+            .toLowerCase()
+            .replace(/^_+|_+$/g, '')            // trim leading/trailing underscores
+            .substring(0, 60);
         const filename = `${dateStr}_${slug}.md`;
 
         const wordCount = finalContent.split(/\s+/).filter(w => w.length > 0).length;
