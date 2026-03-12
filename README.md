@@ -13,6 +13,7 @@ A Chrome extension that scrapes articles, job descriptions, recipes, Reddit post
 - **Date-prefixed filenames** — `2026-03-09_article-title.md` prevents collisions
 - **Noise filtering** — removes ads, cookie banners, nav elements, and hidden responsive clones
 - **Reddit-aware extraction** — preserves self-post bodies, removes Reddit UI noise, and exports comment threads in readable Markdown
+- **LinkedIn job extraction** — keeps the job top card and description while skipping Premium prompts, similar jobs, and other LinkedIn chrome
 
 ## Installation
 
@@ -76,6 +77,7 @@ Works well on: **articles**, **blog posts**, **job descriptions**, **event pages
 
 | Version | Changes |
 |---------|---------|
+| 2.5.0 | Added LinkedIn job-page extraction that targets the job description and strips Premium/recommendation noise |
 | 2.4.0 | Improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
 | 2.3.0 | Fixed Reddit post-body extraction via shadow DOM traversal and smarter drill-down; filtered AutoModerator-style bot replies |
 | 2.2.1 | Fixed filename slug for non-Latin titles (Cyrillic, CJK, etc.) — uses Unicode-aware regex |

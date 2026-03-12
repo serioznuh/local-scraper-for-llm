@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Page Scraper",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Scrapes the current tab's article content and saves it as Markdown to a configurable directory.",
   "permissions": [
     "activeTab",

@@ -50,11 +50,72 @@
                 .replace(/\s*\|\s*Reddit$/i, '')
                 .trim();
         }
+        if (isLinkedInJobPage()) {
+            normalized = normalized
+                .replace(/\s*\|\s*LinkedIn$/i, '')
+                .trim();
+        }
         return normalized || "Untitled";
     }
 
     function isRedditPage() {
         return window.location.hostname.includes('reddit.com');
+    }
+
+    function isLinkedInJobPage() {
+        return window.location.hostname.includes('linkedin.com') &&
+            /^\/jobs\/view\/?/i.test(window.location.pathname);
+    }
+
+    function getLargestVisibleElement(selectors, options = {}) {
+        const { root = document, minTextLength = 1 } = options;
+        let bestEl = null;
+        let bestLen = 0;
+
+        for (const selector of selectors) {
+            const matches = Array.from(root.querySelectorAll(selector));
+            for (const el of matches) {
+                if (!isVisibleElement(el)) continue;
+                const len = cleanText(el.innerText || '').length;
+                if (len < minTextLength) continue;
+                if (len > bestLen) {
+                    bestLen = len;
+                    bestEl = el;
+                }
+            }
+        }
+
+        return bestEl;
+    }
+
+    function getLargestVisibleText(selectors, options = {}) {
+        const el = getLargestVisibleElement(selectors, options);
+        return cleanText(el ? el.innerText : '');
+    }
+
+    function collectVisibleTexts(selectors, options = {}) {
+        const { root = document, minTextLength = 1 } = options;
+        const seen = new Set();
+        const results = [];
+
+        for (const selector of selectors) {
+            const matches = Array.from(root.querySelectorAll(selector));
+            for (const el of matches) {
+                if (!isVisibleElement(el)) continue;
+                const text = cleanText(el.innerText || '');
+                if (text.length < minTextLength || seen.has(text)) continue;
+                seen.add(text);
+                results.push(text);
+            }
+        }
+
+        return results;
+    }
+
+    function sanitizeLinkedInCompanyName(text) {
+        return cleanText(text)
+            .replace(/\s+\d[\d.,\s]*\s+followers?\b.*$/i, '')
+            .trim();
     }
 
     function forEachElementIncludingShadow(root, visitor) {
@@ -170,6 +231,22 @@
             const byEl = Array.from(document.querySelectorAll('p, span, div'))
                 .find(el => /^by\s+\S/i.test((el.innerText || '').trim()) && (el.innerText || '').trim().length < 60);
             if (byEl) author = byEl.innerText.trim().replace(/^by\s+/i, '').trim();
+        }
+
+        if (isLinkedInJobPage()) {
+            const linkedInTitle = getLargestVisibleText([
+                '.job-details-jobs-unified-top-card__job-title',
+                '.jobs-unified-top-card__job-title',
+                'h1'
+            ]);
+            if (linkedInTitle) title = linkedInTitle;
+
+            const linkedInCompany = sanitizeLinkedInCompanyName(getLargestVisibleText([
+                '.job-details-jobs-unified-top-card__company-name',
+                '.jobs-unified-top-card__company-name',
+                'a[href*="/company/"]'
+            ]));
+            if (linkedInCompany) author = linkedInCompany;
         }
 
         return { title: normalizeTitle(title), author };
@@ -590,9 +667,150 @@
         return fullMarkdown;
     }
 
+    function normalizeLinkedInHeaderSegments(text) {
+        return cleanText(text)
+            .split(/\s*[·•]\s*/)
+            .map(segment => cleanText(segment))
+            .filter(Boolean)
+            .filter(segment => {
+                return !(
+                    /people clicked apply/i.test(segment) ||
+                    /^promoted\b/i.test(segment) ||
+                    /responses managed off linkedin/i.test(segment) ||
+                    /see how you compare/i.test(segment) ||
+                    /exclusive applicant insights/i.test(segment) ||
+                    /try premium/i.test(segment)
+                );
+            });
+    }
+
+    function cleanLinkedInMarkdown(markdown) {
+        if (!markdown) return '';
+
+        const stopMarkers = [
+            '\n## Set alert for similar jobs',
+            '\n## More jobs',
+            '\n## Meet the hiring team',
+            '\n## People also viewed',
+            '\n## Similar searches',
+            '\n## Explore collaborative articles',
+            '\n## Discover more from LinkedIn'
+        ];
+
+        let trimmed = markdown;
+        for (const marker of stopMarkers) {
+            const index = trimmed.indexOf(marker);
+            if (index !== -1) {
+                trimmed = trimmed.substring(0, index);
+            }
+        }
+
+        const aboutMatches = Array.from(trimmed.matchAll(/(^|\n)##\s+About the job\b/gi));
+        const aboutMatch = aboutMatches.length > 0 ? aboutMatches[aboutMatches.length - 1] : null;
+        if (aboutMatch && typeof aboutMatch.index === 'number') {
+            const headingIndex = aboutMatch.index + (aboutMatch[1] ? aboutMatch[1].length : 0);
+            if (headingIndex > 0) {
+                trimmed = trimmed.substring(headingIndex);
+            }
+        }
+
+        trimmed = trimmed
+            .split('\n')
+            .filter(line => {
+                const normalized = normalizeText(line);
+                if (!normalized) return true;
+
+                return !(
+                    normalized.includes('try premium') ||
+                    normalized.includes('exclusive applicant insights') ||
+                    normalized.includes('set alert for similar jobs') ||
+                    normalized.includes('job search faster with premium') ||
+                    normalized.includes('more jobs') ||
+                    normalized.includes('see how you compare') ||
+                    normalized.includes('people clicked apply') ||
+                    normalized.includes('promoted by hirer') ||
+                    normalized.includes('responses managed off linkedin') ||
+                    normalized.includes('company logo for') ||
+                    /^#+\s*\d+\s+notifications?$/.test(normalized) ||
+                    /^\d+\s+notifications?$/.test(normalized) ||
+                    /^\[apply\]\(https?:\/\/www\.linkedin\.com\/redir\/redirect/i.test(line.trim()) ||
+                    /linkedin\.com\/jobs\/view\//i.test(line) ||
+                    /linkedin\.com\/company\//i.test(line)
+                );
+            })
+            .join('\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+        return trimmed;
+    }
+
+    function findLinkedInDescriptionNode() {
+        return getLargestVisibleElement([
+            '.jobs-description__container .jobs-box__html-content',
+            '.jobs-description__container .jobs-description-content__text',
+            '.jobs-description-content__text',
+            '.jobs-box__html-content',
+            '.jobs-description__content',
+            '.jobs-description-content',
+            '.jobs-description'
+        ], { minTextLength: 300 });
+    }
+
+    function buildLinkedInMarkdown(fallbackMarkdown = '') {
+        const company = sanitizeLinkedInCompanyName(getLargestVisibleText([
+            '.job-details-jobs-unified-top-card__company-name',
+            '.jobs-unified-top-card__company-name',
+            'a[href*="/company/"]'
+        ]));
+        const primaryHeader = getLargestVisibleText([
+            '.job-details-jobs-unified-top-card__primary-description-container',
+            '.jobs-unified-top-card__primary-description',
+            '.jobs-unified-top-card__subtitle-primary-grouping'
+        ]);
+        const insightTexts = collectVisibleTexts([
+            '.job-details-jobs-unified-top-card__job-insight',
+            '.job-details-jobs-unified-top-card__job-insight-view-model-secondary',
+            '.job-details-preferences-and-skills__pill'
+        ], { minTextLength: 3 })
+            .flatMap(normalizeLinkedInHeaderSegments);
+
+        const headerLines = [];
+        if (company) headerLines.push(company);
+        headerLines.push(...normalizeLinkedInHeaderSegments(primaryHeader));
+        for (const insight of insightTexts) {
+            if (!headerLines.includes(insight)) {
+                headerLines.push(insight);
+            }
+        }
+
+        const descriptionNode = findLinkedInDescriptionNode();
+        const rawDescription = descriptionNode
+            ? htmlToMarkdown(descriptionNode, true).trim()
+            : fallbackMarkdown;
+        const cleanedDescription = cleanLinkedInMarkdown(rawDescription);
+
+        const sections = [];
+        if (headerLines.length > 0) {
+            sections.push(headerLines.join('\n\n'));
+        }
+        if (cleanedDescription) {
+            if (/^##\s+about the job\b/i.test(cleanedDescription)) {
+                sections.push(cleanedDescription);
+            } else {
+                sections.push(`---\n\n## About the job\n\n${cleanedDescription}`);
+            }
+        }
+
+        return sections.join('\n\n').trim();
+    }
+
     function findArticleNode() {
         if (isRedditPage()) {
             return document.body;
+        }
+        if (isLinkedInJobPage()) {
+            return findLinkedInDescriptionNode() || document.body;
         }
 
         // Try semantic selectors — pick the one with the most text content
@@ -660,6 +878,8 @@ SOURCE: ${window.location.href}
         let markdown = htmlToMarkdown(articleNode, true);
         if (isRedditPage()) {
             markdown = buildRedditMarkdown(markdown);
+        } else if (isLinkedInJobPage()) {
+            markdown = buildLinkedInMarkdown(markdown);
         } else {
             const redditLead = extractRedditLeadMarkdown();
             if (redditLead && !markdownIncludesSnippet(markdown, redditLead)) {
@@ -676,6 +896,9 @@ SOURCE: ${window.location.href}
                 .replace(/^\s*Join the conversation\s*$/gmi, '')
                 .replace(/^\s*Sort by:\s*.*$/gmi, '')
                 .replace(/^\s*Search Comments\s*$/gmi, '');
+        }
+        if (isLinkedInJobPage()) {
+            markdown = cleanLinkedInMarkdown(markdown);
         }
 
         // Remove footnote references
