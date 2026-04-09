@@ -1,4 +1,4 @@
-(function() {
+(async function() {
     // Re-injection guard
     if (window.__scraperLLMRunning) {
         return { error: 'Already scraping' };
@@ -65,6 +65,132 @@
     function isLinkedInJobPage() {
         return window.location.hostname.includes('linkedin.com') &&
             /^\/jobs\/view\/?/i.test(window.location.pathname);
+    }
+
+    function getRedditCommentContainerSelector() {
+        return [
+            'shreddit-comment',
+            'faceplate-comment',
+            '[data-testid="comment"]',
+            '[thingid^="t1_"]'
+        ].join(', ');
+    }
+
+    function getRedditCommentStart(root = document) {
+        if (!isRedditPage()) return null;
+
+        const commentContainerSelector = getRedditCommentContainerSelector();
+        const selectorCandidates = [
+            'textarea',
+            'input[placeholder*="Search"]',
+            'input[placeholder*="Search Comments"]',
+            'faceplate-textarea-input',
+            commentContainerSelector
+        ];
+
+        const selectorMatch = selectorCandidates
+            .map(selector => queryFirstIncludingShadow(root, selector))
+            .find(Boolean);
+        if (selectorMatch) return selectorMatch;
+
+        return queryAllIncludingShadow(root, 'div, span, h2, p, form, section')
+            .find(el => {
+                const text = normalizeText(el.innerText || el.textContent || '');
+                const placeholder = normalizeText(el.getAttribute('placeholder') || '');
+                return text.includes('join the conversation') ||
+                    text.startsWith('sort by') ||
+                    text.includes('search comments') ||
+                    placeholder.includes('search comments');
+            }) || null;
+    }
+
+    function getVisibleRedditCommentContainers(root = document) {
+        if (!isRedditPage()) return [];
+        const titleEl = document.querySelector('h1');
+        const commentStart = getRedditCommentStart(root);
+        const orderedElements = [];
+        forEachElementIncludingShadow(root, el => {
+            orderedElements.push(el);
+        });
+        const commentStartIndex = commentStart ? orderedElements.indexOf(commentStart) : -1;
+
+        return queryAllIncludingShadow(root, getRedditCommentContainerSelector())
+            .filter(el => isVisibleElement(el))
+            .filter(el => !titleEl || !el.contains(titleEl))
+            .filter(el => {
+                if (commentStartIndex === -1 || el === commentStart) return true;
+                return orderedElements.indexOf(el) >= commentStartIndex;
+            });
+    }
+
+    function hasHydratedRedditComments(root = document) {
+        return getVisibleRedditCommentContainers(root).some(container => {
+            const bodyNodes = queryAllIncludingShadow(
+                container,
+                'p, blockquote, pre, ul, ol, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
+            );
+            return bodyNodes.some(node => cleanText(node.innerText || node.textContent || '').length > 20);
+        });
+    }
+
+    async function waitForCondition(predicate, timeoutMs, intervalMs = 200) {
+        if (predicate()) return true;
+
+        return await new Promise(resolve => {
+            let settled = false;
+            const timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+            const intervalId = window.setInterval(() => {
+                if (predicate()) finish(true);
+            }, intervalMs);
+            const observer = new MutationObserver(() => {
+                if (predicate()) finish(true);
+            });
+
+            function finish(value) {
+                if (settled) return;
+                settled = true;
+                observer.disconnect();
+                window.clearTimeout(timeoutId);
+                window.clearInterval(intervalId);
+                resolve(value);
+            }
+
+            const observeRoot = document.documentElement || document.body;
+            if (!observeRoot) {
+                finish(false);
+                return;
+            }
+
+            observer.observe(observeRoot, { childList: true, subtree: true, attributes: true });
+        });
+    }
+
+    async function waitForRedditHydration() {
+        if (!isRedditPage()) return;
+
+        const readyStatePromise = document.readyState === 'complete'
+            ? Promise.resolve()
+            : new Promise(resolve => window.addEventListener('load', resolve, { once: true }));
+        const timeoutPromise = new Promise(resolve => window.setTimeout(resolve, 1500));
+        await Promise.race([readyStatePromise, timeoutPromise]);
+
+        if (window.customElements?.whenDefined) {
+            await Promise.race([
+                Promise.allSettled([
+                    window.customElements.whenDefined('shreddit-post'),
+                    window.customElements.whenDefined('shreddit-comment')
+                ]),
+                new Promise(resolve => window.setTimeout(resolve, 1500))
+            ]);
+        }
+
+        const hasCommentStart = () => Boolean(getRedditCommentStart(document));
+        const hasCommentBodies = () => hasHydratedRedditComments(document);
+
+        await waitForCondition(() => hasCommentStart() || hasCommentBodies(), 2500);
+        if (hasCommentStart() && !hasCommentBodies()) {
+            await waitForCondition(hasCommentBodies, 2500);
+        }
     }
 
     function getLargestVisibleElement(selectors, options = {}) {
@@ -421,42 +547,31 @@
         if (!isRedditPage()) return '';
 
         const titleEl = document.querySelector('h1');
-        const mainEl = document.querySelector('main') || document.body;
+        const mainEl = queryFirstIncludingShadow(document, 'main') || document.body;
         if (!titleEl || !mainEl.contains(titleEl)) return '';
 
         const blockTags = new Set(['p', 'blockquote', 'pre', 'ul', 'ol', 'figure', 'img']);
-        const stopSelectors = [
-            'textarea',
-            'input[placeholder*="Search"]',
-            'shreddit-comment',
-            'faceplate-comment',
-            '[data-testid="comment"]',
-            '[thingid^="t1_"]'
-        ].join(', ');
+        const commentStart = getRedditCommentStart(mainEl);
         const blocks = [];
         let started = false;
+        const orderedElements = [];
+
+        forEachElementIncludingShadow(mainEl, el => {
+            orderedElements.push(el);
+        });
+
+        const titleIndex = orderedElements.indexOf(titleEl);
+        const commentStartIndex = commentStart ? orderedElements.indexOf(commentStart) : -1;
 
         function hasCollectedAncestor(node) {
             return blocks.some(block => block.contains(node));
         }
 
-        function isStopNode(node) {
-            if (node.matches(stopSelectors)) return true;
-            const text = normalizeText(node.innerText || node.textContent || '');
-            const placeholder = normalizeText(node.getAttribute('placeholder') || '');
-            return text.includes('join the conversation') ||
-                   text.startsWith('sort by') ||
-                   text.includes('search comments') ||
-                   placeholder.includes('search comments');
-        }
-
-        const walker = document.createTreeWalker(mainEl, NodeFilter.SHOW_ELEMENT);
-        walker.currentNode = titleEl;
-
-        let node = walker.currentNode;
-        while ((node = walker.nextNode())) {
+        for (const node of orderedElements) {
+            const nodeIndex = orderedElements.indexOf(node);
+            if (nodeIndex <= titleIndex) continue;
+            if (commentStartIndex !== -1 && nodeIndex >= commentStartIndex) break;
             if (!isVisibleElement(node)) continue;
-            if (isStopNode(node)) break;
             if (titleEl.contains(node) || node.contains(titleEl)) continue;
 
             const tag = node.tagName.toLowerCase();
@@ -509,25 +624,8 @@
         if (!isRedditPage()) return '';
         const rootEl = document;
         const titleEl = document.querySelector('h1');
-        const commentContainerSelector = [
-            'shreddit-comment',
-            'faceplate-comment',
-            '[data-testid="comment"]',
-            '[thingid^="t1_"]'
-        ].join(', ');
-        const commentStartSelectors = [
-            'textarea',
-            'input[placeholder*="Search"]',
-            'input[placeholder*="Search Comments"]',
-            commentContainerSelector
-        ];
-        const commentStart = commentStartSelectors
-            .map(selector => queryFirstIncludingShadow(rootEl, selector))
-            .find(Boolean) ||
-            queryAllIncludingShadow(rootEl, 'div, span, h2').find(el => normalizeText(el.innerText || '').includes('join the conversation'));
-
-        const commentContainers = queryAllIncludingShadow(rootEl, commentContainerSelector)
-            .filter(el => isVisibleElement(el))
+        const commentContainerSelector = getRedditCommentContainerSelector();
+        const commentContainers = getVisibleRedditCommentContainers(rootEl)
             .filter(el => !titleEl || !el.contains(titleEl));
 
         function queryWithinComment(container, selector) {
@@ -539,14 +637,7 @@
             return nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
         }
 
-        function isAfterCommentStart(el) {
-            if (!commentStart) return true;
-            if (el === commentStart) return true;
-            return Boolean(el.compareDocumentPosition(commentStart) & Node.DOCUMENT_POSITION_PRECEDING);
-        }
-
         return commentContainers
-            .filter(isAfterCommentStart)
             .map(container => {
                 const authorCandidates = queryWithinComment(
                     container,
@@ -862,7 +953,11 @@
         return bestEl || document.body;
     }
 
-    function scrape() {
+    async function scrape() {
+        if (isRedditPage()) {
+            await waitForRedditHydration();
+        }
+
         const articleNode = findArticleNode();
         const { title, author } = parseMetadata();
 
@@ -929,7 +1024,7 @@ SOURCE: ${window.location.href}
     }
 
     try {
-        const result = scrape();
+        const result = await scrape();
         window.__scraperLLMRunning = false;
         return result;
     } catch (e) {

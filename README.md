@@ -40,7 +40,7 @@ Then **fully quit and relaunch Chrome** (Cmd+Q, not just closing the window).
 
 Click the extension icon → enter your desired path in the **Save directory** field → click **Update Path**.
 
-The default path is pre-configured in `background.js` (`DEFAULT_SAVE_DIR`).
+No default local path is committed in the repo. You must set your own save directory in the popup before the first scrape.
 
 ## Output format
 
@@ -77,6 +77,7 @@ Works well on: **articles**, **blog posts**, **job descriptions**, **event pages
 
 | Version | Changes |
 |---------|---------|
+| 2.5.1 | Fixed Reddit comment extraction on hydrated thread pages; removed the committed local default save path |
 | 2.5.0 | Added LinkedIn job-page extraction that targets the job description and strips Premium/recommendation noise |
 | 2.4.0 | Improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
 | 2.3.0 | Fixed Reddit post-body extraction via shadow DOM traversal and smarter drill-down; filtered AutoModerator-style bot replies |

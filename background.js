@@ -1,10 +1,18 @@
 const NATIVE_HOST = 'com.scraper_llm.host';
-const DEFAULT_SAVE_DIR = '/Users/serhii.afanasiev/Documents/Projects/hr-breaker/input/jobs';
+const DEFAULT_SAVE_DIR = '';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'save') {
     chrome.storage.local.get(['savePath'], (result) => {
       const directory = result.savePath || DEFAULT_SAVE_DIR;
+
+      if (!directory) {
+        sendResponse({
+          success: false,
+          error: 'Save directory is not set. Open the extension popup and choose a local folder first.'
+        });
+        return;
+      }
 
       chrome.runtime.sendNativeMessage(NATIVE_HOST, {
         action: 'save',
