@@ -76,6 +76,171 @@
         ].join(', ');
     }
 
+    function isRedditAvatarImage(node, src = '', alt = '') {
+        if (!node) return false;
+        const normalizedAlt = normalizeText(alt || node.getAttribute('alt') || '');
+        const normalizedSrc = (src || node.getAttribute('src') || '').toLowerCase();
+
+        return (normalizedAlt.startsWith('u/') && normalizedAlt.includes('avatar')) ||
+            normalizedSrc.includes('/avatars/') ||
+            normalizedSrc.includes('profileicon');
+    }
+
+    function getTimestampTextFromElement(el) {
+        if (!el) return '';
+        return formatDateOnlyTimestamp(
+            el.getAttribute('datetime') ||
+            el.getAttribute('title') ||
+            el.getAttribute('aria-label') ||
+            el.getAttribute('created-timestamp') ||
+            el.getAttribute('created') ||
+            el.getAttribute('data-created-utc') ||
+            el.innerText ||
+            el.textContent ||
+            ''
+        );
+    }
+
+    function formatDateOnlyTimestamp(value) {
+        const text = cleanText(value);
+        if (!text) return '';
+
+        const isoDateMatch = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+        if (isoDateMatch) return isoDateMatch[1];
+
+        if (/^\d{10}(?:\.\d+)?$/.test(text)) {
+            const parsed = new Date(Number(text) * 1000);
+            if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+        }
+
+        if (/^\d{13}$/.test(text)) {
+            const parsed = new Date(Number(text));
+            if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+        }
+
+        if (/\b\d{4}\b/.test(text)) {
+            const parsed = new Date(text);
+            if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+        }
+
+        return text;
+    }
+
+    function firstDateOnlyTimestamp(...values) {
+        return values.map(formatDateOnlyTimestamp).find(Boolean) || '';
+    }
+
+    function getPublishedTimestamp() {
+        if (isRedditPage()) {
+            const redditTimestamp = getRedditPostTimestamp();
+            if (redditTimestamp) return redditTimestamp;
+        }
+
+        const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const script of jsonLdScripts) {
+            try {
+                const data = JSON.parse(script.textContent);
+                const items = Array.isArray(data) ? data : [data];
+                for (const item of items) {
+                    const value = item.datePublished || item.dateCreated || item.uploadDate;
+                    const timestamp = formatDateOnlyTimestamp(value);
+                    if (timestamp) return timestamp;
+                }
+            } catch (e) {}
+        }
+
+        const meta = document.querySelector(
+            'meta[property="article:published_time"], meta[name="article:published_time"], meta[name="date"], meta[name="pubdate"], meta[itemprop="datePublished"]'
+        );
+        return formatDateOnlyTimestamp(meta ? meta.content : '');
+    }
+
+    function getRedditPostTimestamp() {
+        if (!isRedditPage()) return '';
+
+        const titleEl = document.querySelector('h1');
+        const mainEl = queryFirstIncludingShadow(document, 'main') || document.body;
+        const commentStart = getRedditCommentStart(mainEl);
+        const commentContainerSelector = getRedditCommentContainerSelector();
+
+        const postContainers = queryAllIncludingShadow(
+            document,
+            'shreddit-post, [slot="post"], article, [data-testid="post-container"]'
+        ).filter(el => !titleEl || el.contains(titleEl));
+
+        for (const container of postContainers) {
+            const attrTimestamp = firstDateOnlyTimestamp(
+                container.getAttribute('created-timestamp'),
+                container.getAttribute('created'),
+                container.getAttribute('data-created-utc'),
+                container.dataset?.createdUtc,
+                container.getAttribute('date'),
+                container.getAttribute('timestamp')
+            );
+            if (attrTimestamp) return attrTimestamp;
+
+            const timeEl = queryAllIncludingShadow(
+                container,
+                'time[datetime], time, faceplate-timeago, [datetime]'
+            ).find(el => !closestCrossShadow(el, commentContainerSelector) && getTimestampTextFromElement(el));
+            const timestamp = getTimestampTextFromElement(timeEl);
+            if (timestamp) return timestamp;
+        }
+
+        const orderedElements = [];
+
+        forEachElementIncludingShadow(mainEl, el => {
+            orderedElements.push(el);
+        });
+
+        const commentStartIndex = commentStart ? orderedElements.indexOf(commentStart) : -1;
+        const timeCandidates = queryAllIncludingShadow(mainEl, 'time[datetime], time, faceplate-timeago, [datetime]');
+
+        for (const el of timeCandidates) {
+            const index = orderedElements.indexOf(el);
+            if (index === -1) continue;
+            if (commentStartIndex !== -1 && index >= commentStartIndex) continue;
+            if (closestCrossShadow(el, commentContainerSelector)) continue;
+
+            const timestamp = getTimestampTextFromElement(el);
+            if (timestamp) return timestamp;
+        }
+
+        return '';
+    }
+
+    function cleanRedditAuthor(text) {
+        let author = cleanText(text);
+        if (!author) return '';
+        author = author.split(/[·•]/)[0].trim();
+        author = author.replace(/\s+\b(OP|MOD)\b.*$/i, '').trim();
+        return author;
+    }
+
+    function getRedditCommentId(container) {
+        return cleanText(
+            container.id ||
+            container.getAttribute('thingid') ||
+            container.getAttribute('data-thingid') ||
+            container.getAttribute('fullname') ||
+            container.getAttribute('data-fullname') ||
+            container.getAttribute('comment-id') ||
+            container.getAttribute('data-comment-id') ||
+            ''
+        );
+    }
+
+    function getRedditCommentParentId(container) {
+        return cleanText(
+            container.getAttribute('parentid') ||
+            container.getAttribute('parent-id') ||
+            container.getAttribute('data-parentid') ||
+            container.getAttribute('data-parent-id') ||
+            ''
+        );
+    }
+
+
     function getRedditCommentStart(root = document) {
         if (!isRedditPage()) return null;
 
@@ -90,7 +255,7 @@
 
         const selectorMatch = selectorCandidates
             .map(selector => queryFirstIncludingShadow(root, selector))
-            .find(Boolean);
+            .find(el => el && isVisibleElement(el));
         if (selectorMatch) return selectorMatch;
 
         return queryAllIncludingShadow(root, 'div, span, h2, p, form, section')
@@ -165,9 +330,40 @@
         });
     }
 
+    function promptRedditCommentLoading() {
+        if (!isRedditPage()) return;
+
+        const commentStart = getRedditCommentStart(document);
+        const commentTree = queryFirstIncludingShadow(
+            document,
+            'shreddit-comment-tree, [data-testid="comment-tree"], [slot="comments"]'
+        );
+        const firstComment = queryFirstIncludingShadow(document, getRedditCommentContainerSelector());
+        const targets = [commentStart, commentTree, firstComment].filter(Boolean);
+
+        for (const target of targets) {
+            if (typeof target.scrollIntoView === 'function') {
+                target.scrollIntoView({ block: 'center', inline: 'nearest' });
+                break;
+            }
+        }
+
+        const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 900;
+        const scrollDistance = Math.max(Math.round(viewportHeight * 1.5), 1200);
+        if (typeof window.scrollBy === 'function') {
+            try {
+                window.scrollBy({ top: scrollDistance, left: 0, behavior: 'instant' });
+            } catch (e) {
+                window.scrollBy(0, scrollDistance);
+            }
+        }
+    }
+
     async function waitForRedditHydration() {
         if (!isRedditPage()) return;
 
+        const originalScrollX = window.scrollX || 0;
+        const originalScrollY = window.scrollY || 0;
         const readyStatePromise = document.readyState === 'complete'
             ? Promise.resolve()
             : new Promise(resolve => window.addEventListener('load', resolve, { once: true }));
@@ -187,10 +383,21 @@
         const hasCommentStart = () => Boolean(getRedditCommentStart(document));
         const hasCommentBodies = () => hasHydratedRedditComments(document);
 
-        await waitForCondition(() => hasCommentStart() || hasCommentBodies(), 2500);
-        if (hasCommentStart() && !hasCommentBodies()) {
-            await waitForCondition(hasCommentBodies, 2500);
+        await waitForCondition(() => hasCommentStart() || hasCommentBodies(), 3500);
+        if (!hasCommentBodies()) {
+            promptRedditCommentLoading();
+            await waitForCondition(hasCommentBodies, 7000, 250);
         }
+        if (!hasCommentBodies()) {
+            promptRedditCommentLoading();
+            await waitForCondition(hasCommentBodies, 3500, 250);
+        }
+
+        return () => {
+            if (typeof window.scrollTo === 'function') {
+                window.setTimeout(() => window.scrollTo(originalScrollX, originalScrollY), 0);
+            }
+        };
     }
 
     function getLargestVisibleElement(selectors, options = {}) {
@@ -505,14 +712,15 @@
                 const src = node.getAttribute('src') ||
                             node.getAttribute('data-src') ||
                             node.getAttribute('data-lazy-src') || '';
+                const alt = (node.getAttribute('alt') || '').trim();
                 if (!src || src.startsWith('data:')) return ''; // skip inline blobs & tracking pixels
-                // Skip tiny images (icons, spacers, tracking pixels ≤ 20 px)
+                if (isRedditPage() && isRedditAvatarImage(node, src, alt)) return '';
+                // Skip tiny images (icons, spacers, tracking pixels <= 20 px)
                 const w = parseInt(node.getAttribute('width') || '0');
                 const h = parseInt(node.getAttribute('height') || '0');
                 if ((w > 0 && w < 20) || (h > 0 && h < 20)) return '';
                 // Resolve relative URLs to absolute
                 const absUrl = src.startsWith('http') ? src : new URL(src, window.location.href).href;
-                const alt = (node.getAttribute('alt') || '').trim();
                 return `\n![${alt}](${absUrl})\n`;
             }
             case 'li': return childText;
@@ -637,38 +845,116 @@
             return nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
         }
 
-        return commentContainers
-            .map(container => {
-                const authorCandidates = queryWithinComment(
-                    container,
-                    'a[href*="/user/"], a[href*="/u/"], [data-testid="comment_author_link"], [slot*="author"]'
-                );
-                const authorEl = authorCandidates.find(el => cleanText(el.textContent || '').length > 0);
-                const attrUser = cleanText(
-                    container.getAttribute('author') ||
-                    container.getAttribute('data-author') ||
-                    container.dataset?.author ||
-                    ''
-                );
-                const user = cleanText(authorEl ? authorEl.textContent : attrUser);
-                if (!user || /^(automoderator|\[deleted]|deleted|\[removed]|removed)$/i.test(user)) return null;
+        function extractCommentTimestamp(container) {
+            const attrTimestamp = firstDateOnlyTimestamp(
+                container.getAttribute('created-timestamp') ||
+                container.getAttribute('created') ||
+                container.getAttribute('data-created-utc') ||
+                container.dataset?.createdUtc ||
+                ''
+            );
+            if (attrTimestamp) return attrTimestamp;
 
-                const bodyNodes = filterOutNestedNodes(queryWithinComment(
-                    container,
-                    'p, blockquote, pre, ul, ol, figure, img, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
-                ));
-                const body = bodyNodes
-                    .map(node => htmlToMarkdown(node, false).trim())
-                    .filter(Boolean)
-                    .join('\n\n')
-                    .replace(/\n{3,}/g, '\n\n')
-                    .trim();
+            const timeEl = queryWithinComment(
+                container,
+                'time[datetime], time, faceplate-timeago, [datetime]'
+            ).find(el => getTimestampTextFromElement(el));
+            return getTimestampTextFromElement(timeEl);
+        }
 
-                if (!body || /i am a bot, and this action was performed automatically/i.test(body)) return null;
-                return { user, body };
-            })
+        function extractComment(container) {
+            const authorCandidates = queryWithinComment(
+                container,
+                'a[href*="/user/"], a[href*="/u/"], [data-testid="comment_author_link"], [slot*="author"]'
+            );
+            const authorEl = authorCandidates.find(el => cleanText(el.textContent || '').length > 0);
+            const attrUser = cleanRedditAuthor(
+                container.getAttribute('author') ||
+                container.getAttribute('data-author') ||
+                container.dataset?.author ||
+                ''
+            );
+            const user = cleanRedditAuthor(authorEl ? authorEl.textContent : attrUser);
+            if (!user || /^automoderator$/i.test(user)) return null;
+
+            const bodyNodes = filterOutNestedNodes(queryWithinComment(
+                container,
+                'p, blockquote, pre, ul, ol, figure, img, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
+            ));
+            const body = bodyNodes
+                .map(node => htmlToMarkdown(node, false).trim())
+                .filter(Boolean)
+                .join('\n\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            if (!body || /i am a bot, and this action was performed automatically/i.test(body)) return null;
+            if (/^\[(deleted|removed)]$/i.test(body)) return null;
+
+            return {
+                container,
+                id: getRedditCommentId(container),
+                parentId: getRedditCommentParentId(container),
+                user,
+                timestamp: extractCommentTimestamp(container),
+                body,
+                children: []
+            };
+        }
+
+        function findAncestorComment(container, commentByContainer) {
+            let cur = container.parentElement;
+            while (cur) {
+                if (commentByContainer.has(cur)) return cur;
+                const root = cur.getRootNode ? cur.getRootNode() : null;
+                cur = cur.parentElement || (root && root.host ? root.host : null);
+            }
+            return null;
+        }
+
+        function renderComment(comment, depth = 0, parent = null) {
+            const headingLevel = Math.min(3 + depth, 6);
+            const heading = '#'.repeat(headingLevel);
+            const userLabel = depth === 0 || !parent
+                ? comment.user
+                : `Reply to ${parent.user}: ${comment.user}`;
+            const timestampLabel = comment.timestamp ? ` · ${comment.timestamp}` : '';
+            const parts = [`${heading} ${userLabel}${timestampLabel}`, '', comment.body];
+
+            for (const child of comment.children) {
+                parts.push('', renderComment(child, depth + 1, comment));
+            }
+
+            return parts.join('\n');
+        }
+
+        const comments = commentContainers
+            .map(extractComment)
+            .filter(Boolean);
+        if (comments.length === 0) return '';
+
+        const commentByContainer = new Map(comments.map(comment => [comment.container, comment]));
+        const commentById = new Map(comments
+            .filter(comment => comment.id)
+            .map(comment => [comment.id, comment]));
+        const roots = [];
+
+        for (const comment of comments) {
+            const parentById = comment.parentId && comment.parentId.startsWith('t1_')
+                ? commentById.get(comment.parentId)
+                : null;
+            const parentContainer = findAncestorComment(comment.container, commentByContainer);
+            const parent = parentById || (parentContainer ? commentByContainer.get(parentContainer) : null);
+
+            if (parent && parent !== comment) {
+                parent.children.push(comment);
+            } else {
+                roots.push(comment);
+            }
+        }
+
+        return ['## Comments', roots.map(comment => renderComment(comment)).join('\n\n---\n\n')]
             .filter(Boolean)
-            .map(comment => `---\n\n## ${comment.user}\n\n${comment.body}`)
             .join('\n\n')
             .trim();
     }
@@ -697,7 +983,7 @@
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
-            const isNoiseUser = /^(automoderator|\[deleted]|deleted|\[removed]|removed)$/i.test(currentUser);
+            const isNoiseUser = /^automoderator$/i.test(currentUser);
             const isBotBody = /i am a bot, and this action was performed automatically/i.test(body);
             if (!isNoiseUser && !isBotBody && body) {
                 comments.push({ user: currentUser, body });
@@ -723,11 +1009,20 @@
             if (/^(share|reply|award|vote)$/i.test(line)) continue;
             if (/^\d+\s+(share|reply|award|vote)\b/i.test(line)) continue;
 
-            const userMatch = line.match(/^\[([^\]]+)\]\((?:https?:\/\/(?:www\.)?reddit\.com)?\/user\/[^)]+\)\s*(.*)$/);
+            const userMatch = line.match(/^\[([^\]]+)\]\((?:https?:\/\/(?:www\.)?reddit\.com)?\/(?:user|u)\/[^)]+\)\s*(.*)$/);
             if (userMatch) {
                 flushCurrent();
                 currentUser = cleanText(userMatch[1]);
                 const inlineBody = cleanText(userMatch[2] || '');
+                if (inlineBody) bodyLines.push(inlineBody);
+                continue;
+            }
+
+            const deletedUserMatch = line.match(/^(\[deleted])(?:\s*[·•]\s*(.*))?$/i);
+            if (deletedUserMatch) {
+                flushCurrent();
+                currentUser = '[deleted]';
+                const inlineBody = cleanText(deletedUserMatch[2] || '');
                 if (inlineBody) bodyLines.push(inlineBody);
                 continue;
             }
@@ -954,18 +1249,21 @@
     }
 
     async function scrape() {
+        let restoreScrollPosition = null;
         if (isRedditPage()) {
-            await waitForRedditHydration();
+            restoreScrollPosition = await waitForRedditHydration();
         }
 
         const articleNode = findArticleNode();
         const { title, author } = parseMetadata();
+        const published = getPublishedTimestamp();
+        const publishedMetadataLine = published ? `PUBLISHED: ${cleanText(published)}\n` : '';
 
         const metadataBlock =
 `--- DOCUMENT METADATA ---
 TITLE: ${cleanText(title)}
 AUTHOR: ${cleanText(author)}
-SOURCE: ${window.location.href}
+${publishedMetadataLine}SOURCE: ${window.location.href}
 --- END METADATA ---
 
 `;
@@ -1019,6 +1317,8 @@ SOURCE: ${window.location.href}
         const filename = `${dateStr}_${slug}.md`;
 
         const wordCount = finalContent.split(/\s+/).filter(w => w.length > 0).length;
+
+        if (restoreScrollPosition) restoreScrollPosition();
 
         return { content: finalContent, filename, wordCount };
     }

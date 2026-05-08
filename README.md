@@ -12,7 +12,7 @@ A Chrome extension that scrapes articles, job descriptions, recipes, Reddit post
 - **Configurable from popup** — save directory editable at any time; no need to touch code
 - **Date-prefixed filenames** — `2026-03-09_article-title.md` prevents collisions
 - **Noise filtering** — removes ads, cookie banners, nav elements, and hidden responsive clones
-- **Reddit-aware extraction** — preserves self-post bodies, removes Reddit UI noise, and exports comment threads in readable Markdown
+- **Reddit-aware extraction** — preserves self-post bodies, published timestamps, deleted-author comments with visible text, and nested comment threads while removing avatars and Reddit UI noise
 - **LinkedIn job extraction** — keeps the job top card and description while skipping Premium prompts, similar jobs, and other LinkedIn chrome
 
 ## Installation
@@ -44,10 +44,11 @@ No default local path is committed in the repo. You must set your own save direc
 
 ## Output format
 
-```
+```markdown
 --- DOCUMENT METADATA ---
 TITLE: Article Title
 AUTHOR: Author Name
+PUBLISHED: 2026-03-09
 SOURCE: https://example.com/article
 --- END METADATA ---
 
@@ -56,9 +57,30 @@ Content in clean Markdown...
 ![Image alt text](https://example.com/image.png)
 ```
 
+`PUBLISHED` is included when the source exposes a timestamp.
+
+For Reddit threads, comments are exported as thread-aware Markdown:
+
+```markdown
+## Comments
+
+### gaswalk · 2021-05-25
+
+Top-level comment text.
+
+#### Reply to gaswalk: Fuquar7 · 2021-05-25
+
+Reply text.
+
+#### Reply to gaswalk: KimchiMaker · 2021-05-25
+
+Parallel reply text.
+```
+
 ## Project structure
 
 ```
+├── AGENTS.md              # Codex contributor rules and maintenance checklist
 ├── manifest.json          # Extension manifest (v3)
 ├── background.js          # Service worker — native messaging relay + settings
 ├── content.js             # Injected scraper — HTML → Markdown conversion
@@ -73,10 +95,21 @@ Content in clean Markdown...
 
 Works well on: **articles**, **blog posts**, **job descriptions**, **event pages**, **recipes**, **Reddit posts**, **documentation pages**.
 
+## Maintenance expectations
+
+- Keep this README current whenever behavior, output format, installation, permissions, or supported sites change.
+- Keep AGENTS.md current whenever Codex/project workflow expectations change.
+- For scraper behavior changes, verify with a focused fixture or real page before updating version history.
+- After changes to `content.js`, `manifest.json`, or extension permissions, reload the unpacked extension in Chrome before testing manually.
+
 ## Version history
 
 | Version | Changes |
 |---------|---------|
+| 2.6.3 | Formats Reddit post and comment timestamps as date-only values and reads post dates from Reddit post-level attributes |
+| 2.6.2 | Keeps Reddit comments mounted during extraction after forced comment-section scrolling, fixing virtualized threads that exported as post-only Markdown |
+| 2.6.1 | Waits for lazy-loaded Reddit comments before scraping so hydrated threads do not export as post-only Markdown |
+| 2.6.0 | Added Reddit post/comment timestamps, nested reply-thread Markdown, deleted-author comment preservation, and avatar filtering; added Codex project guidance |
 | 2.5.1 | Fixed Reddit comment extraction on hydrated thread pages; removed the committed local default save path |
 | 2.5.0 | Added LinkedIn job-page extraction that targets the job description and strips Premium/recommendation noise |
 | 2.4.0 | Improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
