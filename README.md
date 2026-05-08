@@ -7,7 +7,7 @@ A Chrome extension that scrapes articles, job descriptions, recipes, Reddit post
 - **Smart content detection** — finds the main article node using semantic selectors + text-density scoring; ignores sidebars, navbars, and responsive duplicates
 - **HTML → Markdown conversion** — headings, bold/italic, lists (nested), blockquotes, code blocks, links, and images
 - **Image support** — preserves `<img>` tags as Markdown image links; handles lazy-loaded images (`data-src`) and resolves relative URLs
-- **Rich metadata extraction** — title, author, and source URL extracted from JSON-LD (supports `author`, `organizer`, `publisher`), meta tags, and DOM fallbacks
+- **Rich metadata extraction** — title, author, published date, and source URL extracted from JSON-LD (supports `author`, `organizer`, `publisher`), meta tags, and DOM fallbacks
 - **Custom save path** — files go to any directory on disk (not Chrome's Downloads folder) via a native messaging host
 - **Configurable from popup** — save directory editable at any time; no need to touch code
 - **Date-prefixed filenames** — `2026-03-09_article-title.md` prevents collisions
@@ -32,7 +32,9 @@ The native host allows the extension to write files to any path on disk (bypassi
 ./install_host.sh <your-extension-id>
 ```
 
-Then **fully quit and relaunch Chrome** (Cmd+Q, not just closing the window).
+Then reload the extension from `chrome://extensions`. If Chrome still reports that the native host is missing, **fully quit and relaunch Chrome** (Cmd+Q, not just closing the window).
+
+The installer writes Chrome's native-messaging manifest under the current user's Chrome config directory and copies the Python runtime host to `$HOME/.local/share/scraper-llm-native-host/` so Chrome can execute it outside this project folder.
 
 > **Requirements:** Python 3 must be available in your `PATH` or at `/usr/bin/python3`
 
@@ -59,6 +61,8 @@ Content in clean Markdown...
 
 `PUBLISHED` is included when the source exposes a timestamp.
 
+`AUTHOR` falls back to `Unknown Author` when no author can be found.
+
 For Reddit threads, comments are exported as thread-aware Markdown:
 
 ```markdown
@@ -81,6 +85,9 @@ Parallel reply text.
 
 ```
 ├── AGENTS.md              # Codex contributor rules and maintenance checklist
+├── README.md              # User-facing install, behavior, privacy, and release notes
+├── .gitignore             # Keeps local/private outputs out of git
+├── package.json           # Dependency-free lint/check scripts
 ├── manifest.json          # Extension manifest (v3)
 ├── background.js          # Service worker — native messaging relay + settings
 ├── content.js             # Injected scraper — HTML → Markdown conversion
@@ -94,6 +101,45 @@ Parallel reply text.
 ## Supported content types
 
 Works well on: **articles**, **blog posts**, **job descriptions**, **event pages**, **recipes**, **Reddit posts**, **documentation pages**.
+
+## Privacy and data handling
+
+- The extension runs only when you click **Scrape Page**.
+- The scraped page content is sent from the content script to the extension background worker, then to the local native host for file writing.
+- The native host writes Markdown to the save directory you configured in the popup. It does not parse pages or send data anywhere.
+- The extension stores only the configured save directory in `chrome.storage.local`.
+- The extension does not make network requests. Remote image URLs can appear in Markdown only as links copied from the scraped page.
+- This repository must not include local save paths, private scraped outputs, screenshots, API keys, or tokens. Local scrape fixtures belong under `test-files-only-store-locally/`, which is ignored by git.
+
+## Permissions
+
+| Permission | Why it is needed |
+|------------|------------------|
+| `activeTab` | Allows scraping the current tab after the user clicks the extension |
+| `scripting` | Injects `content.js` into the active tab |
+| `storage` | Stores the configured save directory locally |
+| `nativeMessaging` | Sends the Markdown file to the local Python host for saving |
+
+## Development and verification
+
+There is no build step. Chrome loads the source files directly as an unpacked extension.
+
+Development checks require Node/npm and Python 3 on `PATH`.
+
+Run the dependency-free check suite before committing:
+
+```bash
+npm run lint
+```
+
+That script checks JavaScript syntax, validates `manifest.json`, compiles the Python native host without writing bytecode, checks the installer shell syntax, and runs Git whitespace conflict checks.
+
+For scraper behavior changes:
+
+- Use a focused fixture or real page that exercises the changed behavior.
+- For Reddit, cover delayed hydration, virtualized comments, deleted-author comments with visible bodies, timestamps, and nested replies.
+- Reload the unpacked extension after changing `content.js`, `manifest.json`, permissions, popup files, or background behavior.
+- Keep manual scrape outputs in `test-files-only-store-locally/` or another ignored/private directory.
 
 ## Maintenance expectations
 

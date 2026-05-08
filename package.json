@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "lint": "node --check content.js && node --check background.js && node --check popup.js && python3 -m json.tool manifest.json >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile native-host/save_file.py && bash -n install_host.sh && git diff --check && git diff --cached --check",
+    "check": "npm run lint"
+  }
+}

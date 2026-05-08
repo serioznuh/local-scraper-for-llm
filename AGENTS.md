@@ -12,6 +12,7 @@ Page Scraper is a Chrome Manifest V3 extension that extracts readable Markdown f
 - `native-host/save_file.py`: local file writing only. Do not move scraping logic here.
 - `README.md`: user-facing behavior, install steps, output format, supported sites, version history.
 - `AGENTS.md`: Codex/project workflow rules.
+- `package.json`: dependency-free project checks. Keep it lightweight unless the project genuinely needs a build or test dependency.
 
 ## Documentation Rules
 
@@ -19,6 +20,14 @@ Page Scraper is a Chrome Manifest V3 extension that extracts readable Markdown f
 - Update the version history for user-visible behavior changes. Keep `manifest.json` version aligned with those releases.
 - Update `AGENTS.md` when project workflow, verification expectations, or architecture boundaries change.
 - If a change requires user action, finish the response with a clear "Next Steps" section. For extension code changes, that usually means reloading the unpacked extension and refreshing the target tab.
+
+## Quality Gates
+
+- Run `npm run lint` before committing. It currently performs JavaScript syntax checks, manifest JSON validation, Python native-host compilation without bytecode writes, installer shell syntax checks, and Git whitespace checks.
+- Add or update focused fixtures for scraper behavior changes. Do not rely only on manual visual inspection when the behavior can be reproduced with a small DOM fixture.
+- For popup/background/native-host changes, manually verify the extension flow in Chrome: save path load/update, scrape trigger, native host response, and user-facing error text.
+- For `manifest.json` or permission changes, reload the unpacked extension and confirm Chrome accepts the manifest.
+- If the project grows enough to need ESLint, HTML validation, or a formal test runner, add them as explicit scripts and document the new commands in README.md and this file.
 
 ## Scraper Rules
 
@@ -31,9 +40,27 @@ Page Scraper is a Chrome Manifest V3 extension that extracts readable Markdown f
 ## Verification Rules
 
 - Before changing scraper behavior, create or run a focused fixture that fails on the current behavior. For Reddit comments, include delayed-hydration and virtualized-comment cases because comments can appear after the post body and can unmount when scrolling back to the top.
-- After implementation, rerun the same fixture and run `node --check content.js`.
+- After implementation, rerun the same fixture and run `npm run lint`.
 - When possible, also test one real page manually in Chrome after reloading the unpacked extension.
 - Do not claim a fix is complete without reporting what was verified and what could not be verified.
+
+## Privacy and Security Rules
+
+- Keep `DEFAULT_SAVE_DIR` empty. Users must configure their own save directory from the popup.
+- Inspect the staged diff before commit. Do not commit local save paths, private scraped outputs, screenshots, API keys, tokens, cookies, or browser profile data.
+- Keep `test-files-only-store-locally/` ignored. Use it only for local fixtures/manual scrape output.
+- Preserve the least-privilege extension model. Do not add host permissions, broad tab access, network calls, or external services unless the user explicitly needs them and README.md explains why.
+- Preserve the native-host boundary: it receives Markdown and writes files locally. It must not scrape pages, execute commands from messages, or send content over the network.
+- Keep generated filenames path-safe. Do not allow scraped page content to choose arbitrary filesystem paths.
+
+## Release Checklist
+
+- Bump `manifest.json` for user-visible behavior changes.
+- Update README.md output examples, supported content notes, permissions, privacy notes, and version history when relevant.
+- Run `npm run lint`.
+- Run focused fixtures for changed scraper behavior.
+- Manually reload and test the unpacked extension when extension runtime files changed.
+- Stage only intentional files and confirm no private data is present before commit/push.
 
 ## Editing Constraints
 
