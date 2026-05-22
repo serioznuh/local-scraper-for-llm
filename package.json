@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "lint": "node --check content.js && node --check background.js && node --check popup.js && python3 -m json.tool manifest.json >/dev/null && PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile native-host/save_file.py && bash -n install_host.sh && git diff --check && git diff --cached --check",
+    "lint": "node --check content.js && node --check background.js && node --check popup.js && python3 -m json.tool manifest.json >/dev/null && python3 -c \"from pathlib import Path; p = Path('native-host/save_file.py'); compile(p.read_text(encoding='utf-8'), str(p), 'exec')\" && bash -n install_host.sh && git diff --check && git diff --cached --check",
     "check": "npm run lint"
   }
 }

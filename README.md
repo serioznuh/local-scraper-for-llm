@@ -141,8 +141,9 @@ Run the dependency-free check suite before committing:
 npm run lint
 ```
 
-The check script validates JavaScript syntax, `manifest.json`, the Python native
-host, installer shell syntax, and Git whitespace.
+The check script validates JavaScript syntax, `manifest.json`, Python native host
+syntax without writing bytecode cache files, installer shell syntax, and Git
+whitespace.
 
 ## Change Workflow
 
@@ -173,4 +174,6 @@ or anything that could expose or modify private data.
   permission and data handling details.
 - [docs/build-release.md](docs/build-release.md) - release workflow.
 - [docs/verification.md](docs/verification.md) - verification tiers.
+- [docs/future-improvements.md](docs/future-improvements.md) - improvement
+  backlog and future feature notes.
 - [docs/history.md](docs/history.md) - chronological history index.
