@@ -1,50 +1,74 @@
 # Page Scraper
 
-A Chrome extension that scrapes articles, job descriptions, recipes, Reddit posts, and event pages into clean Markdown files — saved directly to a configurable local directory for LLM analysis pipelines.
+Page Scraper is a Chrome Manifest V3 extension that extracts readable Markdown
+from the active tab and saves it to a local folder through a native messaging
+host.
 
-## Features
+It is built for lightweight LLM analysis workflows: no build step, no backend
+service, and no network calls from the extension.
 
-- **Smart content detection** — finds the main article node using semantic selectors + text-density scoring; ignores sidebars, navbars, and responsive duplicates
-- **HTML → Markdown conversion** — headings, bold/italic, lists (nested), blockquotes, code blocks, links, and images
-- **Image support** — preserves `<img>` tags as Markdown image links; handles lazy-loaded images (`data-src`) and resolves relative URLs
-- **Rich metadata extraction** — title, author, published date, and source URL extracted from JSON-LD (supports `author`, `organizer`, `publisher`), meta tags, and DOM fallbacks
-- **Custom save path** — files go to any directory on disk (not Chrome's Downloads folder) via a native messaging host
-- **Configurable from popup** — save directory editable at any time; no need to touch code
-- **Date-prefixed filenames** — `2026-03-09_article-title.md` prevents collisions
-- **Noise filtering** — removes ads, cookie banners, nav elements, and hidden responsive clones
-- **Reddit-aware extraction** — preserves self-post bodies, published timestamps, deleted-author comments with visible text, and nested comment threads while removing avatars and Reddit UI noise
-- **LinkedIn job extraction** — keeps the job top card and description while skipping Premium prompts, similar jobs, and other LinkedIn chrome
+## What It Does
+
+- Scrapes the page only when you click **Scrape Page** in the popup.
+- Detects the main readable content and filters common page chrome.
+- Converts HTML into Markdown with headings, lists, blockquotes, code blocks,
+  links, and image links.
+- Adds metadata for title, author, source URL, and published date when available.
+- Saves Markdown to your configured local directory.
+- Includes focused handling for Reddit threads and LinkedIn job pages.
+
+## Requirements
+
+- Google Chrome
+- Python 3 available as `python3` or `/usr/bin/python3`
+- Node/npm for local verification commands
 
 ## Installation
 
-### 1. Load the extension
+### 1. Load The Extension
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked** and select this folder
-4. Copy the **Extension ID** shown on the card
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select this project folder.
+5. Copy the extension ID shown on the extension card.
 
-### 2. Install the native messaging host
+### 2. Install The Native Host
 
-The native host allows the extension to write files to any path on disk (bypassing Chrome's sandboxed Downloads folder).
+The native host lets Chrome write Markdown files outside the Downloads sandbox.
 
 ```bash
 ./install_host.sh <your-extension-id>
 ```
 
-Then reload the extension from `chrome://extensions`. If Chrome still reports that the native host is missing, **fully quit and relaunch Chrome** (Cmd+Q, not just closing the window).
+Then reload the extension in `chrome://extensions`. If Chrome still reports the
+native host is missing, fully quit and relaunch Chrome with Cmd+Q.
 
-The installer writes Chrome's native-messaging manifest under the current user's Chrome config directory and copies the Python runtime host to `$HOME/.local/share/scraper-llm-native-host/` so Chrome can execute it outside this project folder.
+The installer registers Chrome's native messaging manifest for the current user
+and copies the Python host into `$HOME/.local/share/scraper-llm-native-host/`.
 
-> **Requirements:** Python 3 must be available in your `PATH` or at `/usr/bin/python3`
+### 3. Set The Save Directory
 
-### 3. Set your save directory
+Click the extension icon, enter your target folder in **Save directory**, then
+click **Update Path**.
 
-Click the extension icon → enter your desired path in the **Save directory** field → click **Update Path**.
+No default save path is committed. You must configure your own path before the
+first scrape.
 
-No default local path is committed in the repo. You must set your own save directory in the popup before the first scrape.
+## Usage
 
-## Output format
+1. Open the page you want to save.
+2. Click the Page Scraper extension icon.
+3. Click **Scrape Page**.
+4. Check the configured save directory for the generated Markdown file.
+
+Generated filenames use the current date and a page-title slug, for example:
+
+```text
+2026-05-22_getting-the-most-out-of-codex.md
+```
+
+## Output Format
 
 ```markdown
 --- DOCUMENT METADATA ---
@@ -59,72 +83,57 @@ Content in clean Markdown...
 ![Image alt text](https://example.com/image.png)
 ```
 
-`PUBLISHED` is included when the source exposes a timestamp.
+`PUBLISHED` appears only when the page exposes a usable timestamp. `AUTHOR`
+falls back to `Unknown Author` when no author can be found.
 
-`AUTHOR` falls back to `Unknown Author` when no author can be found.
+## Supported Content
 
-For Reddit threads, comments are exported as thread-aware Markdown:
+Works well on articles, blog posts, job descriptions, event pages, recipes,
+Reddit posts, documentation pages, and LinkedIn job pages.
 
-```markdown
-## Comments
+Reddit exports keep self-post text, post date when available, comment author,
+comment date when available, deleted-author comments with visible bodies, and
+nested reply structure.
 
-### gaswalk · 2021-05-25
+## Project Layout
 
-Top-level comment text.
-
-#### Reply to gaswalk: Fuquar7 · 2021-05-25
-
-Reply text.
-
-#### Reply to gaswalk: KimchiMaker · 2021-05-25
-
-Parallel reply text.
+```text
+.
+|-- AGENTS.md
+|-- README.md
+|-- manifest.json
+|-- background.js
+|-- content.js
+|-- popup.html
+|-- popup.js
+|-- native-host/save_file.py
+|-- install_host.sh
+|-- icons/
+`-- docs/
 ```
 
-## Project structure
+See [docs/architecture.md](docs/architecture.md) for the component map and
+runtime message flow.
 
-```
-├── AGENTS.md              # Codex contributor rules and maintenance checklist
-├── README.md              # User-facing install, behavior, privacy, and release notes
-├── .gitignore             # Keeps local/private outputs out of git
-├── package.json           # Dependency-free lint/check scripts
-├── manifest.json          # Extension manifest (v3)
-├── background.js          # Service worker — native messaging relay + settings
-├── content.js             # Injected scraper — HTML → Markdown conversion
-├── popup.html / popup.js  # Extension popup UI
-├── icons/                 # Extension icons (16, 32, 48, 128px)
-├── native-host/
-│   └── save_file.py       # Native messaging host — writes .md files to disk
-└── install_host.sh        # One-time setup script for native host registration
-```
+## Privacy And Permissions
 
-## Supported content types
+- The extension runs only after a user click.
+- It uses `activeTab`, not broad host permissions.
+- It does not request Chrome cookie access.
+- It does not make network requests.
+- It stores only the configured save directory in `chrome.storage.local`.
+- Scraped page content is passed to a local native host and written to disk.
+- Remote image URLs may appear as Markdown links copied from the page.
+- Local scrape outputs and private fixtures belong in ignored directories such
+  as `test-files-only-store-locally/`.
 
-Works well on: **articles**, **blog posts**, **job descriptions**, **event pages**, **recipes**, **Reddit posts**, **documentation pages**.
+See [docs/permissions-and-privacy.md](docs/permissions-and-privacy.md) for the
+full permission and data-boundary notes.
 
-## Privacy and data handling
+## Development
 
-- The extension runs only when you click **Scrape Page**.
-- The scraped page content is sent from the content script to the extension background worker, then to the local native host for file writing.
-- The native host writes Markdown to the save directory you configured in the popup. It does not parse pages or send data anywhere.
-- The extension stores only the configured save directory in `chrome.storage.local`.
-- The extension does not make network requests. Remote image URLs can appear in Markdown only as links copied from the scraped page.
-- This repository must not include local save paths, private scraped outputs, screenshots, API keys, or tokens. Local scrape fixtures belong under `test-files-only-store-locally/`, which is ignored by git.
-
-## Permissions
-
-| Permission | Why it is needed |
-|------------|------------------|
-| `activeTab` | Allows scraping the current tab after the user clicks the extension |
-| `scripting` | Injects `content.js` into the active tab |
-| `storage` | Stores the configured save directory locally |
-| `nativeMessaging` | Sends the Markdown file to the local Python host for saving |
-
-## Development and verification
-
-There is no build step. Chrome loads the source files directly as an unpacked extension.
-
-Development checks require Node/npm and Python 3 on `PATH`.
+There is no build step. Chrome loads these source files directly as an unpacked
+extension.
 
 Run the dependency-free check suite before committing:
 
@@ -132,36 +141,36 @@ Run the dependency-free check suite before committing:
 npm run lint
 ```
 
-That script checks JavaScript syntax, validates `manifest.json`, compiles the Python native host without writing bytecode, checks the installer shell syntax, and runs Git whitespace conflict checks.
+The check script validates JavaScript syntax, `manifest.json`, the Python native
+host, installer shell syntax, and Git whitespace.
 
-For scraper behavior changes:
+## Change Workflow
 
-- Use a focused fixture or real page that exercises the changed behavior.
-- For Reddit, cover delayed hydration, virtualized comments, deleted-author comments with visible bodies, timestamps, and nested replies.
-- Reload the unpacked extension after changing `content.js`, `manifest.json`, permissions, popup files, or background behavior.
-- Keep manual scrape outputs in `test-files-only-store-locally/` or another ignored/private directory.
+Use feature branches and GitHub PRs for meaningful changes. PRs are the default
+tracking artifact: they make the exact diff visible, keep history reviewable,
+and provide a place for follow-up questions.
 
-## Maintenance expectations
+PRs are not a manual approval gate unless you explicitly ask Codex to keep one
+open. After successful verification, Codex should open a ready PR, merge it,
+push `main`, and clean up the feature branch by default.
 
-- Keep this README current whenever behavior, output format, installation, permissions, or supported sites change.
-- Keep AGENTS.md current whenever Codex/project workflow expectations change.
-- For scraper behavior changes, verify with a focused fixture or real page before updating version history.
-- After changes to `content.js`, `manifest.json`, or extension permissions, reload the unpacked extension in Chrome before testing manually.
+Safety-sensitive actions still require explicit approval before the action
+itself, including destructive Git operations, force pushes, permission expansion,
+or anything that could expose or modify private data.
 
-## Version history
+## More Documentation
 
-| Version | Changes |
-|---------|---------|
-| 2.6.3 | Formats Reddit post and comment timestamps as date-only values and reads post dates from Reddit post-level attributes |
-| 2.6.2 | Keeps Reddit comments mounted during extraction after forced comment-section scrolling, fixing virtualized threads that exported as post-only Markdown |
-| 2.6.1 | Waits for lazy-loaded Reddit comments before scraping so hydrated threads do not export as post-only Markdown |
-| 2.6.0 | Added Reddit post/comment timestamps, nested reply-thread Markdown, deleted-author comment preservation, and avatar filtering; added Codex project guidance |
-| 2.5.1 | Fixed Reddit comment extraction on hydrated thread pages; removed the committed local default save path |
-| 2.5.0 | Added LinkedIn job-page extraction that targets the job description and strips Premium/recommendation noise |
-| 2.4.0 | Improved Reddit extraction for self-posts and comments across shadow DOM; removed Reddit UI noise; exported comment threads as clean Markdown |
-| 2.3.0 | Fixed Reddit post-body extraction via shadow DOM traversal and smarter drill-down; filtered AutoModerator-style bot replies |
-| 2.2.1 | Fixed filename slug for non-Latin titles (Cyrillic, CJK, etc.) — uses Unicode-aware regex |
-| 2.2.0 | Image support — `<img>` preserved as Markdown links |
-| 2.1.0 | Fixed content duplication on responsive pages; sidebar exclusion via drill-down; improved author extraction (JSON-LD organizer/publisher) |
-| 2.0.0 | Custom save path via native messaging host; background service worker; configurable popup; date-prefixed filenames; better article detection |
-| 1.5.1 | Original version |
+- [docs/current-state.md](docs/current-state.md) - active project state.
+- [docs/architecture.md](docs/architecture.md) - component boundaries and flow.
+- [docs/content-script.md](docs/content-script.md) - scraper behavior.
+- [docs/background-service-worker.md](docs/background-service-worker.md) -
+  background worker messages.
+- [docs/popup-options-ui-and-storage.md](docs/popup-options-ui-and-storage.md) -
+  popup, options-page status, and local settings.
+- [docs/native-host.md](docs/native-host.md) - native host installation and
+  file writing.
+- [docs/permissions-and-privacy.md](docs/permissions-and-privacy.md) -
+  permission and data handling details.
+- [docs/build-release.md](docs/build-release.md) - release workflow.
+- [docs/verification.md](docs/verification.md) - verification tiers.
+- [docs/history.md](docs/history.md) - chronological history index.
