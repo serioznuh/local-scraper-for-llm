@@ -5,8 +5,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const clipboardModeInputs = Array.from(document.querySelectorAll('input[name="clipboardMode"]'));
   const openAfterSaveInput = document.getElementById('openAfterSave');
   const saveButton = document.getElementById('saveSettingsBtn');
+  const toast = document.getElementById('toast');
+  const unsavedChangesToast = document.getElementById('unsavedChangesToast');
   const banner = document.getElementById('banner');
+  let savedSettings = null;
   let bannerTimer = 0;
+  let toastTimer = 0;
 
   function hideBanner() {
     banner.hidden = true;
@@ -14,16 +18,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     banner.className = 'banner';
   }
 
+  function trimTerminalPeriod(message) {
+    return String(message || '').trim().replace(/\.$/, '');
+  }
+
   function showBanner(message, state = 'info', autoHide = false) {
     if (bannerTimer) {
       clearTimeout(bannerTimer);
       bannerTimer = 0;
     }
-    banner.textContent = message;
+    banner.textContent = trimTerminalPeriod(message);
     banner.className = `banner ${state}`;
     banner.hidden = false;
     if (autoHide) {
       bannerTimer = setTimeout(hideBanner, 2600);
+    }
+  }
+
+  function hideToast() {
+    toast.hidden = true;
+    toast.textContent = '';
+    toast.className = 'toast banner';
+  }
+
+  function showToast(message, state = 'info', autoHide = false) {
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = 0;
+    }
+    toast.textContent = trimTerminalPeriod(message);
+    toast.className = `toast banner ${state}`;
+    toast.hidden = false;
+    if (autoHide) {
+      toastTimer = setTimeout(hideToast, 2600);
     }
   }
 
@@ -53,17 +80,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     openAfterSaveInput.checked = settings.openAfterSave;
   }
 
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getSettings' });
-    renderSettings(ScraperSettings.normalizeSettings(response?.settings || response));
-    if (response?.lastStatus?.message) {
-      showBanner(response.lastStatus.message, response.lastStatus.state || 'info', response.lastStatus.state === 'success');
+  function settingsAreEqual(a, b) {
+    return a.savePath === b.savePath &&
+      a.clipboardMode === b.clipboardMode &&
+      a.openAfterSave === b.openAfterSave;
+  }
+
+  function updateUnsavedState() {
+    const hasUnsavedChanges = Boolean(savedSettings && !settingsAreEqual(readFormSettings(), savedSettings));
+    unsavedChangesToast.textContent = 'Unsaved changes';
+    unsavedChangesToast.className = 'toast banner warning';
+    unsavedChangesToast.hidden = !hasUnsavedChanges;
+  }
+
+  function shouldShowStoredStatus(status) {
+    return Boolean(status?.message && status.showInSettings === true);
+  }
+
+  function renderStoredStatus(status) {
+    if (shouldShowStoredStatus(status)) {
+      showBanner(status.message, status.state || 'info');
     } else {
       hideBanner();
     }
+  }
+
+  if (chrome.storage?.onChanged?.addListener) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && changes.lastStatus) {
+        renderStoredStatus(changes.lastStatus.newValue);
+      }
+    });
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getSettings' });
+    savedSettings = ScraperSettings.normalizeSettings(response?.settings || response);
+    renderSettings(savedSettings);
+    updateUnsavedState();
+    renderStoredStatus(response?.lastStatus);
   } catch (e) {
     showBanner('Could not load settings, reload the extension and try again', 'error');
   }
+
+  savePathInput.addEventListener('input', updateUnsavedState);
+  for (const input of clipboardModeInputs) {
+    input.addEventListener('change', updateUnsavedState);
+  }
+  openAfterSaveInput.addEventListener('change', updateUnsavedState);
 
   chooseDirectoryButton.addEventListener('click', async () => {
     setDirectoryBusy(true);
@@ -78,6 +142,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       savePathInput.value = response.directory || '';
+      updateUnsavedState();
       savePathInput.focus();
     } catch (e) {
       showBanner('Could not choose a folder, reload the extension and try again', 'error');
@@ -101,8 +166,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      renderSettings(ScraperSettings.normalizeSettings(response.settings));
-      showBanner('Settings saved', 'success', true);
+      savedSettings = ScraperSettings.normalizeSettings(response.settings);
+      renderSettings(savedSettings);
+      updateUnsavedState();
+      showToast('Settings saved', 'success', true);
     } catch (e) {
       showBanner('Could not save settings, reload the extension and try again', 'error');
     } finally {

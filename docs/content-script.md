@@ -66,5 +66,5 @@ similar jobs, and unrelated LinkedIn chrome when possible.
 ## Failure Shape
 
 If no article node can be found, the script returns an error object. The
-background service worker turns that into a toolbar error badge and latest status
-for the options page.
+background service worker turns that into a persistent toolbar error badge and
+tooltip until the next scrape run.

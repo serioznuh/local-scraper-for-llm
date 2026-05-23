@@ -15,6 +15,30 @@ spec.loader.exec_module(save_file)
 
 
 class NativeHostSaveTests(unittest.TestCase):
+    def test_missing_save_directory_is_marked_as_directory_error(self):
+        response = save_file.handle_save({
+            "directory": "",
+            "filename": "note.md",
+            "content": "hello"
+        })
+
+        self.assertFalse(response["success"])
+        self.assertEqual(response["errorCode"], "saveDirectory")
+
+    @mock.patch.object(save_file.os, "makedirs")
+    def test_directory_creation_errors_are_marked_as_directory_errors(self, makedirs):
+        makedirs.side_effect = OSError("Permission denied: /Users/me/Scrapes")
+
+        response = save_file.handle_save({
+            "directory": "/Users/me/Scrapes",
+            "filename": "note.md",
+            "content": "hello"
+        })
+
+        self.assertFalse(response["success"])
+        self.assertEqual(response["errorCode"], "saveDirectory")
+        self.assertIn("Permission denied", response["error"])
+
     def test_rejects_path_separator_in_filename(self):
         with tempfile.TemporaryDirectory() as directory:
             response = save_file.handle_save({

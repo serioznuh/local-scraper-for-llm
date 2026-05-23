@@ -14,6 +14,10 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function tooltipTitle(message) {
+  return `${message}\n `;
+}
+
 function waitForMessage(listener, message) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('message handler did not respond')), 50);
@@ -27,7 +31,8 @@ function waitForMessage(listener, message) {
 function createChromeMock({
   storedSettings = {},
   scriptResult = null,
-  nativeResponse = { success: true, path: '/Users/me/Scrapes/page.md' }
+  nativeResponse = { success: true, path: '/Users/me/Scrapes/page.md' },
+  nativeLastError = null
 } = {}) {
   const storage = {
     settings: ScraperSettings.normalizeSettings(storedSettings)
@@ -35,6 +40,7 @@ function createChromeMock({
   const calls = {
     badges: [],
     badgeColors: [],
+    titles: [],
     openedOptions: 0,
     nativeMessages: [],
     scripts: [],
@@ -57,7 +63,9 @@ function createChromeMock({
       setBadgeBackgroundColor(details) {
         calls.badgeColors.push(details);
       },
-      setTitle() {}
+      setTitle(details) {
+        calls.titles.push(details);
+      }
     },
     runtime: {
       lastError: null,
@@ -71,7 +79,9 @@ function createChromeMock({
       },
       sendNativeMessage(host, message, callback) {
         calls.nativeMessages.push({ host, message });
+        chrome.runtime.lastError = nativeLastError;
         callback(nativeResponse);
+        chrome.runtime.lastError = null;
       }
     },
     scripting: {
@@ -134,8 +144,12 @@ test('icon click without save directory opens settings and shows an error badge'
   assert.equal(mock.calls.nativeMessages.length, 0);
   assert.equal(
     mock.storage.lastStatus.message,
-    'Choose a save directory before scraping.'
+    'Choose a save directory before scraping'
   );
+  assert.equal(mock.storage.lastStatus.showInSettings, true);
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), {
+    title: tooltipTitle('Choose a save directory before scraping')
+  });
 });
 
 test('icon click scrapes the tab and saves through the native host', async () => {
@@ -175,6 +189,124 @@ test('icon click scrapes the tab and saves through the native host', async () =>
     openAfterSave: true
   });
   assert.deepEqual(plain(mock.calls.badges.at(-1)), { text: '' });
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), { title: tooltipTitle('Scrape page') });
+});
+
+test('content extraction errors stay on the toolbar without opening settings', async () => {
+  const mock = createChromeMock({
+    storedSettings: {
+      savePath: '/Users/me/Scrapes'
+    },
+    scriptResult: {
+      error: 'No readable content'
+    }
+  });
+  loadBackground(mock);
+
+  mock.actionListeners[0]({ id: 34 });
+  await flush();
+
+  assert.equal(mock.calls.openedOptions, 0);
+  assert.deepEqual(plain(mock.calls.badges.at(-1)), { text: 'ERR' });
+  assert.equal(
+    mock.storage.lastStatus.message,
+    'Could not extract content. Try a regular web page with readable text'
+  );
+  assert.equal(mock.storage.lastStatus.showInSettings, false);
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), {
+    title: tooltipTitle('Could not extract content. Try a regular web page with readable text')
+  });
+});
+
+test('save directory native errors open settings and mark the status for settings display', async () => {
+  const mock = createChromeMock({
+    storedSettings: {
+      savePath: '/Users/me/Scrapes'
+    },
+    scriptResult: {
+      content: '# Saved page',
+      filename: 'saved-page.md'
+    },
+    nativeResponse: {
+      success: false,
+      errorCode: 'saveDirectory',
+      error: 'Permission denied: /Users/me/Scrapes'
+    }
+  });
+  loadBackground(mock);
+
+  mock.actionListeners[0]({ id: 34 });
+  await flush();
+
+  assert.equal(mock.calls.openedOptions, 1);
+  assert.deepEqual(plain(mock.calls.badges.at(-1)), { text: 'ERR' });
+  assert.equal(
+    mock.storage.lastStatus.message,
+    'Could not save the file. Permission denied: /Users/me/Scrapes'
+  );
+  assert.equal(mock.storage.lastStatus.showInSettings, true);
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), {
+    title: tooltipTitle('Could not save the file. Permission denied: /Users/me/Scrapes')
+  });
+});
+
+test('save warnings stay on the toolbar without opening settings', async () => {
+  const mock = createChromeMock({
+    storedSettings: {
+      savePath: '/Users/me/Scrapes',
+      clipboardMode: 'file'
+    },
+    scriptResult: {
+      content: '# Saved page',
+      filename: 'saved-page.md'
+    },
+    nativeResponse: {
+      success: true,
+      path: '/Users/me/Scrapes/saved-page.md',
+      copyFileError: 'Clipboard blocked'
+    }
+  });
+  loadBackground(mock);
+
+  mock.actionListeners[0]({ id: 34 });
+  await flush();
+
+  assert.equal(mock.calls.openedOptions, 0);
+  assert.deepEqual(plain(mock.calls.badges.at(-1)), { text: 'WARN' });
+  assert.equal(
+    mock.storage.lastStatus.message,
+    'Saved, but could not copy the file. Clipboard blocked'
+  );
+  assert.equal(mock.storage.lastStatus.showInSettings, false);
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), {
+    title: tooltipTitle('Saved, but could not copy the file. Clipboard blocked')
+  });
+});
+
+test('native host errors stay on the toolbar without a trailing period', async () => {
+  const mock = createChromeMock({
+    storedSettings: {
+      savePath: '/Users/me/Scrapes'
+    },
+    scriptResult: {
+      content: '# Saved page',
+      filename: 'saved-page.md'
+    },
+    nativeLastError: {
+      message: 'Specified native messaging host not found.'
+    }
+  });
+  loadBackground(mock);
+
+  mock.actionListeners[0]({ id: 34 });
+  await flush();
+
+  const message = 'Native host not found. Run install_host.sh first';
+  assert.equal(mock.calls.openedOptions, 0);
+  assert.deepEqual(plain(mock.calls.badges.at(-1)), { text: 'ERR' });
+  assert.equal(mock.storage.lastStatus.message, message);
+  assert.equal(mock.storage.lastStatus.showInSettings, false);
+  assert.deepEqual(plain(mock.calls.titles.at(-1)), { title: tooltipTitle(message) });
 });
 
 test('chooseDirectory message proxies the fixed native host action', async () => {
@@ -194,5 +326,21 @@ test('chooseDirectory message proxies the fixed native host action', async () =>
   });
   assert.deepEqual(plain(mock.calls.nativeMessages[0].message), {
     action: 'chooseDirectory'
+  });
+});
+
+test('chooseDirectory native host errors have no trailing period', async () => {
+  const mock = createChromeMock({
+    nativeLastError: {
+      message: 'Specified native messaging host not found.'
+    }
+  });
+  loadBackground(mock);
+
+  const response = await waitForMessage(mock.runtimeListeners[0], { action: 'chooseDirectory' });
+
+  assert.deepEqual(plain(response), {
+    success: false,
+    error: 'Native host not found. Run install_host.sh first'
   });
 });

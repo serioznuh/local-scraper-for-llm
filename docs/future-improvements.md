@@ -37,8 +37,8 @@ Small, safe candidates:
 
 - Make setup errors more specific: missing save path, missing native host,
   unwritable directory, and pages Chrome cannot inject into.
-- Keep improving latest-status details in Settings, especially for warning
-  states after optional output actions fail.
+- Keep improving toolbar tooltip details, especially for warning states after
+  optional output actions fail.
 
 Larger candidates:
 
@@ -52,7 +52,7 @@ Small, safe candidates:
 - Add targeted cleanup profiles for GitHub issues and discussions, Stack
   Overflow answers, documentation pages, Substack or Medium-like articles, and
   forum threads.
-- Add lightweight page-type reporting so the latest status can distinguish
+- Add lightweight page-type reporting so the toolbar status can distinguish
   generic article, Reddit, LinkedIn job, docs page, forum, and other strategies.
 
 Larger candidates:

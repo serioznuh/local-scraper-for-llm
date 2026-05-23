@@ -17,6 +17,8 @@
       --primary-hover: oklch(48% 0.17 255);
       --success: oklch(48% 0.13 150);
       --success-bg: oklch(94% 0.04 150);
+      --warning: oklch(38% 0.09 82);
+      --warning-bg: oklch(96% 0.055 88);
       --error: oklch(52% 0.18 25);
       --error-bg: oklch(95% 0.035 25);
       --info: oklch(42% 0.11 255);
@@ -167,10 +169,33 @@
       color: var(--error);
     }
 
+    .banner.warning {
+      border-color: oklch(79% 0.105 88);
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
     .banner.info {
       border-color: oklch(78% 0.07 255);
       background: var(--info-bg);
       color: var(--info);
+    }
+
+    .toast-region {
+      position: fixed;
+      inset-block-start: var(--space-5);
+      inset-inline-start: var(--page-inset);
+      z-index: 20;
+      display: grid;
+      width: min(var(--content-width), calc(100vw - (var(--page-inset) * 2)));
+      gap: var(--space-2);
+      pointer-events: none;
+    }
+
+    .toast {
+      margin: 0;
+      box-shadow: 0 12px 28px oklch(24% 0.018 250 / 15%);
+      pointer-events: auto;
     }
 
     .choice {
@@ -264,6 +289,12 @@
     }
 
     @media (max-width: 720px) {
+      .toast-region {
+        inset-block-start: var(--mobile-inset);
+        inset-inline: var(--mobile-inset);
+        width: auto;
+      }
+
       main {
         width: calc(100% - (var(--mobile-inset) * 2));
         margin-inline: var(--mobile-inset);
@@ -273,6 +304,11 @@
   </style>
 </head>
 <body>
+  <div class="toast-region">
+    <div id="toast" class="toast banner" role="status" aria-live="polite" hidden></div>
+    <div id="unsavedChangesToast" class="toast banner warning" role="status" aria-live="polite" hidden>Unsaved changes</div>
+  </div>
+
   <main>
     <header>
       <h1>Page Scraper Settings</h1>

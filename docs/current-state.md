@@ -19,8 +19,8 @@ The extension runs on demand:
 5. `native-host/save_file.py` writes the file to the configured local directory
    and can copy Markdown text, copy the saved file, or open it through macOS when
    enabled.
-6. The toolbar badge reports progress, success, warnings, and errors. Setup
-   errors open Settings automatically.
+6. The toolbar badge and tooltip report progress, success, warnings, and errors.
+   Save-directory errors open Settings automatically.
 
 ## Active Behavior
 
@@ -72,8 +72,9 @@ committed `DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save
 paths are not stored in the repository.
 
 The extension has no popup. The toolbar icon is the scrape trigger. The options
-page owns durable settings, folder selection, and latest status. Both optional
-output actions are off by default.
+page owns durable settings, folder selection, and save-directory error recovery.
+It shows a yellow top floating toast when edited values differ from saved
+settings. Both optional output actions are off by default.
 
 ## Privacy State
 

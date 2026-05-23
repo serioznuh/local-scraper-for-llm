@@ -1,20 +1,26 @@
 # Action, Options UI, And Storage
 
 The toolbar icon is the user's capture surface. The options page owns durable
-preferences and detailed status.
+preferences and save-directory fixes.
 
 ## Toolbar Action
 
 Clicking the Page Scraper toolbar icon starts extraction for the active tab. The
-extension does not define a popup. Immediate feedback uses the toolbar badge:
+extension does not define a popup. Immediate feedback uses the toolbar badge and
+icon tooltip:
 
 - `...` while scraping or saving
-- `OK` for success
+- `OK` for success, then clears
 - `WARN` when the file saved but an optional output action failed
 - `ERR` for setup, extraction, or save failures
 
-Setup errors open the options page automatically. Users can also open Settings
-through Chrome's extension **Options** entry.
+Warnings and errors keep their badge and tooltip text until the next scrape run
+or until settings are saved. Only save-directory errors open the options page
+automatically. Users can also open Settings through Chrome's extension
+**Options** entry.
+
+Action tooltips include a blank spacer line after the extension-controlled text
+so Chrome's site-access line reads as separate browser-provided context.
 
 ## Options UI
 
@@ -25,8 +31,15 @@ The options page stores:
   `.md` file through the macOS native host.
 - **Open saved Markdown file**: off by default; macOS-only native-host action.
 
-The page has no idle "ready" text. Save/settings errors appear in a top banner.
-Successful settings saves show a green top banner that dismisses itself.
+The page has no idle "ready" text. Save-directory errors appear in a persistent
+top banner because the user can fix them there. Stored scrape successes,
+warnings, and non-settings errors do not replay on settings load. Successful
+settings saves show a green top floating toast that dismisses itself.
+
+When form values differ from the last saved settings, a yellow **Unsaved
+changes** top floating toast appears using the same banner styling as settings
+errors. It hides after the settings save succeeds or when the form returns to
+the saved values.
 
 ## Storage
 
@@ -54,8 +67,10 @@ When the user clicks the toolbar icon, the background service worker:
 4. Sends the scrape result to the native host for saving.
 5. Lets the native host copy Markdown text if `clipboardMode` is `markdown`.
 6. Lets the native host copy the saved file if `clipboardMode` is `file`.
-7. Reports save, optional copy, and open-after-save outcomes through the toolbar
-   badge and latest status shown in Settings.
+7. Opens Settings if the native host reports that the save directory cannot be
+   created or written.
+8. Reports non-settings failures and optional copy/open failures through the
+   toolbar badge and tooltip.
 
 ## Error Text
 
@@ -74,5 +89,6 @@ Action and options errors are user-facing. Keep them direct and actionable:
 
 Action/options changes need manual Chrome verification after reloading the
 unpacked extension. Check settings load/save, folder picker, toolbar scrape
-trigger, success/error badges, successful save, Markdown text clipboard copy,
-saved-file clipboard copy, open-after-save, and user-facing error text.
+trigger, success/error/warning badges, persistent warning/error tooltips,
+successful save, Markdown text clipboard copy, saved-file clipboard copy,
+open-after-save, and user-facing error text.
