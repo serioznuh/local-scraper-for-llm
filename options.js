@@ -41,13 +41,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast.className = 'toast banner';
   }
 
-  function showToast(message, state = 'info', autoHide = false) {
+  function showToast(message, state = 'info', autoHide = false, options = {}) {
     if (toastTimer) {
       clearTimeout(toastTimer);
       toastTimer = 0;
     }
     toast.textContent = trimTerminalPeriod(message);
-    toast.className = `toast banner ${state}`;
+    toast.className = `toast banner ${state}${options.immediate ? ' toast-immediate' : ''}`;
     toast.hidden = false;
     if (autoHide) {
       toastTimer = setTimeout(hideToast, 2600);
@@ -166,10 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      const replacesUnsavedToast = !unsavedChangesToast.hidden;
       savedSettings = ScraperSettings.normalizeSettings(response.settings);
       renderSettings(savedSettings);
       updateUnsavedState();
-      showToast('Settings saved', 'success', true);
+      showToast('Settings saved', 'success', true, { immediate: replacesUnsavedToast });
     } catch (e) {
       showBanner('Could not save settings, reload the extension and try again', 'error');
     } finally {
