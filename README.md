@@ -173,7 +173,8 @@ and provide a place for follow-up questions.
 
 PRs are not a manual approval gate unless you explicitly ask Codex to keep one
 open. After successful verification, Codex should open a ready PR, merge it,
-push `main`, and clean up the feature branch by default.
+push `main`, and clean up the feature branch by default. Codex-created PR titles
+start with `[codex]`.
 
 Safety-sensitive actions still require explicit approval before the action
 itself, including destructive Git operations, force pushes, permission expansion,
