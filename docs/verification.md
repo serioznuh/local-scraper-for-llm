@@ -73,7 +73,8 @@ Ask before:
 
 For meaningful changes, use a branch and PR even when the user does not intend to
 manually approve the merge. Open a normal ready PR by default, not a draft PR,
-unless the user asks for a draft.
+unless the user asks for a draft. Codex-created PR titles must start with
+`[codex]`.
 
 The PR should summarize:
 

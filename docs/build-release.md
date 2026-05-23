@@ -55,7 +55,7 @@ gate.
 
 Use focused feature branches for meaningful changes. PRs are the default tracking
 artifact and are not a manual approval gate unless the user asks to pause before
-merge.
+merge. Codex-created PR titles must start with `[codex]`.
 
 After successful verification, merge the PR, push `main`, delete the merged
 branch on GitHub and locally, and prune stale remote-tracking refs.

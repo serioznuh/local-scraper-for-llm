@@ -161,8 +161,8 @@ to keep the PR open.
 5. Inspect `git diff` and `git status --short`.
 6. Scan staged text for secrets before committing.
 7. Commit with a clear message.
-8. Push the branch and open a ready PR that explains what changed and how it was
-   checked.
+8. Push the branch and open a ready PR with a title that starts with `[codex]`
+   and explains what changed and how it was checked.
 9. Merge to `main` after successful verification unless the user asked to keep
    the PR open for review.
 10. Push updated `main`.
