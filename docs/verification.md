@@ -8,7 +8,7 @@ was and was not verified.
 Run:
 
 ```bash
-npm run lint
+npm run check
 ```
 
 The lint script is intended to stay sandbox-friendly. It checks the Python
@@ -29,16 +29,22 @@ and can unmount when scrolling back to the top.
 After implementation:
 
 1. Rerun the same fixture.
-2. Run `npm run lint`.
+2. Run `npm run check`.
 3. When possible, reload the unpacked extension and test one real page in Chrome.
 
-## Popup, Background, And Native Host Changes
+## Action, Options, Background, And Native Host Changes
 
 Reload the unpacked extension in Chrome and verify:
 
-- save path loads in the popup
-- save path updates
-- scrape trigger works
+- toolbar icon scrape trigger works
+- setup errors open Settings automatically
+- folder picker populates save directory
+- save path and output-action settings update
+- settings save success appears as a temporary green top banner
+- toolbar success, warning, and error badges are readable
+- Markdown text clipboard copy works when enabled
+- saved-file clipboard copy works when enabled
+- macOS open-after-save works when enabled
 - native host returns success
 - user-facing error text is actionable
 

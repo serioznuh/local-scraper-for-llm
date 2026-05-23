@@ -9,16 +9,20 @@ service, and no network calls from the extension.
 
 ## What It Does
 
-- Scrapes the page only when you click **Scrape Page** in the popup.
+- Scrapes the page when you click the Page Scraper toolbar icon.
 - Detects the main readable content and filters common page chrome.
 - Converts HTML into Markdown with headings, lists, blockquotes, code blocks,
   links, and image links.
 - Adds metadata for title, author, source URL, and published date when available.
 - Saves Markdown to your configured local directory.
+- Can copy Markdown text or the saved `.md` file to the clipboard after scraping
+  when enabled in settings.
+- Can open saved Markdown files on macOS after saving when enabled in settings.
 - Includes focused handling for Reddit threads and LinkedIn job pages.
 
 ## Requirements
 
+- macOS
 - Google Chrome
 - Python 3 available as `python3` or `/usr/bin/python3`
 - Node/npm for local verification commands
@@ -47,10 +51,19 @@ native host is missing, fully quit and relaunch Chrome with Cmd+Q.
 The installer registers Chrome's native messaging manifest for the current user
 and copies the Python host into `$HOME/.local/share/scraper-llm-native-host/`.
 
-### 3. Set The Save Directory
+### 3. Configure Settings
 
-Click the extension icon, enter your target folder in **Save directory**, then
-click **Update Path**.
+Right-click the extension icon and choose **Options**, then set **Save
+directory** before the first scrape. You can type the path or use the folder
+button to choose a local folder. If you click the toolbar icon before this is
+configured, Settings opens automatically.
+
+Optional settings are off by default:
+
+- **Clipboard after scrape** can stay off, copy Markdown text, or copy the saved
+  `.md` file for apps that accept pasted files.
+- **Open saved Markdown file** opens the generated `.md` file through macOS
+  after saving.
 
 No default save path is committed. You must configure your own path before the
 first scrape.
@@ -59,8 +72,8 @@ first scrape.
 
 1. Open the page you want to save.
 2. Click the Page Scraper extension icon.
-3. Click **Scrape Page**.
-4. Check the configured save directory for the generated Markdown file.
+3. Check the configured save directory, clipboard, or opened file based on your
+   settings.
 
 Generated filenames use the current date and a page-title slug, for example:
 
@@ -104,8 +117,9 @@ nested reply structure.
 |-- manifest.json
 |-- background.js
 |-- content.js
-|-- popup.html
-|-- popup.js
+|-- options.html
+|-- options.js
+|-- settings.js
 |-- native-host/save_file.py
 |-- install_host.sh
 |-- icons/
@@ -121,8 +135,14 @@ runtime message flow.
 - It uses `activeTab`, not broad host permissions.
 - It does not request Chrome cookie access.
 - It does not make network requests.
-- It stores only the configured save directory in `chrome.storage.local`.
+- It stores local settings in `chrome.storage.local`.
 - Scraped page content is passed to a local native host and written to disk.
+- If Markdown clipboard copying is enabled, scraped Markdown replaces the current
+  clipboard contents.
+- If saved-file clipboard copying is enabled, the native host asks macOS to copy
+  the generated `.md` file as a file reference.
+- If open-after-save is enabled, the native host asks macOS to open the saved
+  `.md` file with the default local app.
 - Remote image URLs may appear as Markdown links copied from the page.
 - Local scrape outputs and private fixtures belong in ignored directories such
   as `test-files-only-store-locally/`.
@@ -138,12 +158,12 @@ extension.
 Run the dependency-free check suite before committing:
 
 ```bash
-npm run lint
+npm run check
 ```
 
 The check script validates JavaScript syntax, `manifest.json`, Python native host
-syntax without writing bytecode cache files, installer shell syntax, and Git
-whitespace.
+syntax without writing bytecode cache files, focused unit tests, installer shell
+syntax, and Git whitespace.
 
 ## Change Workflow
 
@@ -166,8 +186,8 @@ or anything that could expose or modify private data.
 - [docs/content-script.md](docs/content-script.md) - scraper behavior.
 - [docs/background-service-worker.md](docs/background-service-worker.md) -
   background worker messages.
-- [docs/popup-options-ui-and-storage.md](docs/popup-options-ui-and-storage.md) -
-  popup, options-page status, and local settings.
+- [docs/action-options-ui-and-storage.md](docs/action-options-ui-and-storage.md) -
+  toolbar action, options-page status, and local settings.
 - [docs/native-host.md](docs/native-host.md) - native host installation and
   file writing.
 - [docs/permissions-and-privacy.md](docs/permissions-and-privacy.md) -

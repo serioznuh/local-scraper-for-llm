@@ -11,12 +11,16 @@ output, or packaged runtime artifact in the repository.
 
 The extension runs on demand:
 
-1. The user clicks the extension popup.
-2. `popup.js` injects `content.js` into the active tab.
-3. `content.js` extracts Markdown and returns it to the popup.
-4. The popup asks `background.js` to save the file.
-5. `background.js` sends the Markdown to the native messaging host.
-6. `native-host/save_file.py` writes the file to the configured local directory.
+1. The user clicks the Page Scraper toolbar icon.
+2. `background.js` loads settings and injects `content.js` into the active tab.
+3. `content.js` extracts Markdown and returns it to the background worker.
+4. `background.js` sends the Markdown and enabled output actions to the native
+   messaging host.
+5. `native-host/save_file.py` writes the file to the configured local directory
+   and can copy Markdown text, copy the saved file, or open it through macOS when
+   enabled.
+6. The toolbar badge reports progress, success, warnings, and errors. Setup
+   errors open Settings automatically.
 
 ## Active Behavior
 
@@ -62,22 +66,25 @@ LinkedIn chrome when possible.
 
 ## Configuration State
 
-The only user setting is `savePath` in `chrome.storage.local`. The committed
-`DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save paths are not
-stored in the repository.
+Settings live as a versioned `settings` object in `chrome.storage.local`.
+Supported keys are `savePath`, `clipboardMode`, and `openAfterSave`. The
+committed `DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save
+paths are not stored in the repository.
 
-The popup loads the saved path on open, lets the user update it, then uses it for
-future saves.
+The extension has no popup. The toolbar icon is the scrape trigger. The options
+page owns durable settings, folder selection, and latest status. Both optional
+output actions are off by default.
 
 ## Privacy State
 
-The extension uses `activeTab`, `scripting`, `storage`, and `nativeMessaging`. It
-does not define broad `host_permissions`, does not request cookie access, and does
-not make network requests.
+The extension uses `activeTab`, `scripting`, `storage`, and `nativeMessaging`.
+It does not define broad `host_permissions`, does not request cookie access, and
+does not make network requests.
 
 Scraped content may contain sensitive page text, visible tokens, private URLs, or
-other user data if those are present in the page DOM. Saved outputs must stay
-local and out of Git unless the user explicitly decides otherwise.
+other user data if those are present in the page DOM. Saved outputs and clipboard
+contents must stay local and out of Git unless the user explicitly decides
+otherwise.
 
 ## Project Workflow
 

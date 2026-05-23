@@ -1,7 +1,9 @@
 # Native Host
 
 The native host is the local file-writing bridge between Chrome and the user's
-filesystem.
+filesystem. On macOS, it can also copy the saved Markdown file as a file
+reference, copy Markdown text, show a folder picker, or open a saved file when
+the user enables those settings.
 
 ## Host Identity
 
@@ -32,11 +34,7 @@ On macOS, the manifest is written under:
 $HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/
 ```
 
-On Linux, it is written under:
-
-```text
-$HOME/.config/google-chrome/NativeMessagingHosts/
-```
+Other operating systems are not a supported target for this project.
 
 ## Message Protocol
 
@@ -48,15 +46,43 @@ The save payload contains:
 - `directory`
 - `filename`
 - `content`
+- `clipboardMode`
+- `openAfterSave`
 
 For `action: "save"`, the host creates the directory if needed and writes the
-Markdown file using UTF-8.
+Markdown file using UTF-8. It validates the filename again before writing so
+scraped page content cannot choose arbitrary paths.
+
+If `clipboardMode` is `file` and the host is running on macOS, the host runs a
+fixed AppleScript command that asks macOS to copy the saved Markdown file as a
+file reference. If `clipboardMode` is `markdown`, the host writes the scraped
+Markdown text to the macOS clipboard with `pbcopy`. If `openAfterSave` is
+`true`, the host runs the system `open` command on the saved Markdown file. The
+response includes:
+
+- `success`
+- `path`
+- `copiedText`
+- `copiedFile`
+- `opened`
+- `copyTextError` when saving succeeded but copying Markdown text failed
+- `copyFileError` when saving succeeded but copying the file failed
+- `openError` when saving succeeded but opening failed
+
+For `action: "chooseDirectory"`, the host runs a fixed AppleScript folder picker
+and returns:
+
+- `success`
+- `directory`
+- `error` when the picker fails or is canceled
 
 ## Boundary
 
-The host must stay local and narrow. It should only receive Markdown and write a
-file. It must not scrape pages, execute commands from messages, inspect browser
-state, or send content over the network.
+The host must stay local and narrow. It should only receive Markdown, write a
+file, optionally copy Markdown text or that exact saved file on macOS, optionally
+show a folder picker, and optionally open that exact saved file on macOS. It must
+not scrape pages, execute arbitrary commands from extension messages, inspect
+browser state, or send content over the network.
 
 ## Troubleshooting
 

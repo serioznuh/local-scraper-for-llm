@@ -8,14 +8,15 @@ as an unpacked extension.
 Run:
 
 ```bash
-npm run lint
+npm run check
 ```
 
 The script checks:
 
-- JavaScript syntax for `content.js`, `background.js`, and `popup.js`
+- JavaScript syntax for extension scripts
 - `manifest.json` JSON validity
 - Python native host compilation without bytecode writes
+- focused JavaScript and Python unit tests
 - installer shell syntax
 - Git whitespace issues in unstaged and staged diffs
 
@@ -34,7 +35,7 @@ For user-visible behavior changes:
 1. Update the relevant topic docs.
 2. Update [history.md](history.md) and the dated archive.
 3. Bump `manifest.json`.
-4. Run `npm run lint`.
+4. Run `npm run check`.
 5. Run focused scraper fixtures when scraper behavior changes.
 6. Reload the unpacked extension in Chrome when runtime files changed.
 7. Manually verify the affected extension flow.
@@ -45,7 +46,8 @@ For user-visible behavior changes:
 ## Documentation Changes
 
 Docs-only changes should not modify code unless the user approves the code change.
-Still run `npm run lint` before claiming completion because it is the project gate.
+Still run `npm run check` before claiming completion because it is the project
+gate.
 
 ## Branches And PRs
 

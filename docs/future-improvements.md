@@ -35,38 +35,15 @@ Larger candidates:
 
 Small, safe candidates:
 
-- Disable the scrape button while scraping and restore it afterward.
-- Show the saved file path returned by the native host, not only the filename.
 - Make setup errors more specific: missing save path, missing native host,
   unwritable directory, and pages Chrome cannot inject into.
-- Store and show a local "last saved" status in the popup.
+- Keep improving latest-status details in Settings, especially for warning
+  states after optional output actions fail.
 
 Larger candidates:
 
-- Add an options page for save directory, output preferences, and future toggles.
 - Add a preview step that shows title, source, word count, and extracted content
   before saving.
-
-## Clipboard And Open-After-Save Options
-
-These should be user-configurable settings, disabled by default unless the user
-chooses otherwise.
-
-- Add an option to copy the scraped Markdown to the clipboard after extraction.
-  The popup flow can likely use `navigator.clipboard.writeText()` while the user
-  gesture is active. If copying needs to happen outside the popup's active
-  interaction, evaluate adding the `clipboardWrite` permission or an offscreen
-  document path.
-- Add an option to open the saved `.md` file after the native host writes it.
-  Because files are written through native messaging rather than Chrome's
-  download manager, the likely implementation is for the native host to open the
-  saved path with the operating system's default app after a successful save.
-- Avoid relying on `chrome.downloads.open()` for native-host saves. That API is
-  designed for Chrome download items and requires downloads permissions plus a
-  user gesture.
-- Treat both toggles as privacy-sensitive UX settings. The UI should make clear
-  that clipboard contents will be replaced and that opening a file may launch an
-  external local app.
 
 ## Expanding Site Coverage
 
@@ -75,8 +52,8 @@ Small, safe candidates:
 - Add targeted cleanup profiles for GitHub issues and discussions, Stack
   Overflow answers, documentation pages, Substack or Medium-like articles, and
   forum threads.
-- Add lightweight page-type reporting so the popup can distinguish generic
-  article, Reddit, LinkedIn job, docs page, forum, and other strategies.
+- Add lightweight page-type reporting so the latest status can distinguish
+  generic article, Reddit, LinkedIn job, docs page, forum, and other strategies.
 
 Larger candidates:
 
@@ -89,10 +66,6 @@ Larger candidates:
 
 Small, safe candidates:
 
-- Sanitize filenames again inside the native host, even though the content script
-  already generates safe filenames.
-- Validate save-message shape in the background worker before sending content to
-  the native host.
 - Add a max content size guard to prevent accidental huge saves or oversized
   native messages.
 

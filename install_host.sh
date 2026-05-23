@@ -53,15 +53,13 @@ WRAPPER
 chmod +x "$WRAPPER_SCRIPT"
 chmod +x "$HOST_SCRIPT"
 
-# Determine manifest directory based on OS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    MANIFEST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    MANIFEST_DIR="$HOME/.config/google-chrome/NativeMessagingHosts"
-else
-    echo "Unsupported OS: $OSTYPE"
+# Page Scraper is supported on macOS only.
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    echo "Unsupported OS: $OSTYPE. Page Scraper is supported on macOS only."
     exit 1
 fi
+
+MANIFEST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 
 mkdir -p "$MANIFEST_DIR"
 

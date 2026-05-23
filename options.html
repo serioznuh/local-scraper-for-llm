@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Page Scraper Settings</title>
+  <style>
+    :root {
+      --page: oklch(98% 0.006 250);
+      --surface: oklch(100% 0.004 250);
+      --text: oklch(24% 0.018 250);
+      --muted: oklch(48% 0.015 250);
+      --border: oklch(86% 0.012 250);
+      --field: oklch(99% 0.004 250);
+      --neutral-button: oklch(94% 0.008 250);
+      --neutral-button-hover: oklch(90% 0.01 250);
+      --primary: oklch(54% 0.16 255);
+      --primary-hover: oklch(48% 0.17 255);
+      --success: oklch(48% 0.13 150);
+      --success-bg: oklch(94% 0.04 150);
+      --error: oklch(52% 0.18 25);
+      --error-bg: oklch(95% 0.035 25);
+      --info: oklch(42% 0.11 255);
+      --info-bg: oklch(94% 0.025 255);
+      --focus: oklch(62% 0.17 255);
+      --content-width: 644px;
+      --space-0: 2px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --page-inset: 48px;
+      --mobile-inset: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(var(--content-width), calc(100% - (var(--page-inset) * 2)));
+      margin-inline: var(--page-inset) auto;
+      padding-block: var(--space-6);
+    }
+
+    header {
+      margin-block-end: var(--space-5);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+
+    form {
+      display: grid;
+      gap: var(--space-5);
+    }
+
+    section {
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.3;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    fieldset {
+      display: grid;
+      gap: var(--space-3);
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    legend {
+      padding: 0;
+      margin-block-end: var(--space-1);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    label {
+      display: block;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .hint {
+      max-width: 64ch;
+      margin: var(--space-0) 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .path-control {
+      display: grid;
+      grid-template-columns: 1fr 40px;
+      gap: var(--space-2);
+      align-items: end;
+      margin-block-start: var(--space-2);
+    }
+
+    input[type="text"] {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--field);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+    }
+
+    input[type="text"]:focus-visible {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px oklch(62% 0.17 255 / 18%);
+    }
+
+    .banner {
+      margin-block-end: var(--space-5);
+      padding: var(--space-3);
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .banner[hidden] {
+      display: none;
+    }
+
+    .banner.success {
+      border-color: oklch(76% 0.08 150);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .banner.error {
+      border-color: oklch(78% 0.08 25);
+      background: var(--error-bg);
+      color: var(--error);
+    }
+
+    .banner.info {
+      border-color: oklch(78% 0.07 255);
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
+    .choice {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: var(--space-3);
+      align-items: start;
+    }
+
+    .choice input {
+      width: 16px;
+      height: 16px;
+      margin: 3px 0 0;
+      accent-color: var(--primary);
+    }
+
+    .choice label {
+      margin: 0;
+    }
+
+    .separated-choice {
+      margin-block-start: var(--space-2);
+      padding-block-start: var(--space-4);
+      border-block-start: 1px solid var(--border);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    button {
+      min-height: 40px;
+      padding: 8px 14px;
+      border: 0;
+      border-radius: 7px;
+      background: var(--primary);
+      color: var(--surface);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 680;
+      transition: background-color 160ms ease-out, opacity 160ms ease-out;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    button:focus {
+      outline: none;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
+
+    .primary-button {
+      background: var(--primary);
+      color: var(--surface);
+    }
+
+    .primary-button:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 40px;
+      min-height: 40px;
+      padding: 0;
+      border: 1px solid var(--border);
+      background: var(--neutral-button);
+      color: var(--text);
+    }
+
+    .icon-button:hover:not(:disabled) {
+      background: var(--neutral-button-hover);
+    }
+
+    .icon-button svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    @media (max-width: 720px) {
+      main {
+        width: calc(100% - (var(--mobile-inset) * 2));
+        margin-inline: var(--mobile-inset);
+        padding-block: var(--space-5);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Page Scraper Settings</h1>
+    </header>
+
+    <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+    <form id="settingsForm">
+      <div>
+        <label for="savePath">Save Directory</label>
+        <div class="path-control">
+          <input id="savePath" name="savePath" type="text" autocomplete="off" spellcheck="false" placeholder="/Users/name/Documents/Scrapes">
+          <button id="chooseDirectoryBtn" class="icon-button" type="button" title="Choose Folder" aria-label="Choose Folder">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v1H3Z"></path>
+              <path d="M3 10h18l-2 9H5Z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <section aria-labelledby="actions-heading">
+        <h2 id="actions-heading">After Scraping</h2>
+
+        <fieldset>
+          <legend>Clipboard</legend>
+
+          <div class="choice">
+            <input id="clipboardOff" name="clipboardMode" type="radio" value="off">
+            <div>
+              <label for="clipboardOff">Do not copy to clipboard</label>
+              <p class="hint">Only save the generated Markdown file</p>
+            </div>
+          </div>
+
+          <div class="choice">
+            <input id="clipboardMarkdown" name="clipboardMode" type="radio" value="markdown">
+            <div>
+              <label for="clipboardMarkdown">Copy Markdown text</label>
+              <p class="hint">Replaces the current clipboard contents with the scraped Markdown text</p>
+            </div>
+          </div>
+
+          <div class="choice">
+            <input id="clipboardFile" name="clipboardMode" type="radio" value="file">
+            <div>
+              <label for="clipboardFile">Copy saved Markdown file</label>
+              <p class="hint">Copies the saved file so file-aware apps can paste it</p>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="choice separated-choice">
+          <input id="openAfterSave" name="openAfterSave" type="checkbox">
+          <div>
+            <label for="openAfterSave">Open saved Markdown file</label>
+            <p class="hint">Opens the saved file with the default app for `.md` files</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="saveSettingsBtn" class="primary-button" type="submit">Save Settings</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="settings.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

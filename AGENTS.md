@@ -34,9 +34,13 @@ Core facts:
 
 - Manifest V3 extension loaded directly from this repository.
 - `content.js` extracts metadata, readable content, Markdown, and filenames.
-- `background.js` handles popup messages, local settings, and native messaging.
-- `popup.html` and `popup.js` provide save-path configuration and scrape trigger.
-- `native-host/save_file.py` receives Markdown and writes files locally.
+- `settings.js` owns default settings, migration, normalization, and summaries.
+- `background.js` handles toolbar-icon scraping, options messages, local
+  settings, status badges, and native messaging.
+- `options.html` and `options.js` provide save-path and output-action settings.
+- `native-host/save_file.py` receives Markdown, writes files locally, and can
+  copy or open saved Markdown files on macOS when the user enables those
+  settings.
 - `install_host.sh` registers the native host for the current Chrome user.
 - `DEFAULT_SAVE_DIR` must stay empty. Users configure their own save path.
 
@@ -47,8 +51,8 @@ Core facts:
 - [docs/content-script.md](docs/content-script.md) - extraction and Markdown rules.
 - [docs/background-service-worker.md](docs/background-service-worker.md) -
   service worker messages and native relay.
-- [docs/popup-options-ui-and-storage.md](docs/popup-options-ui-and-storage.md) -
-  popup UI, options-page status, and `chrome.storage.local` behavior.
+- [docs/action-options-ui-and-storage.md](docs/action-options-ui-and-storage.md) -
+  toolbar action, options-page status, and `chrome.storage.local` behavior.
 - [docs/native-host.md](docs/native-host.md) - local file-writing boundary.
 - [docs/permissions-and-privacy.md](docs/permissions-and-privacy.md) -
   permissions, page access, and private data handling.
@@ -82,7 +86,7 @@ Run commands from the project root.
 Fast local verification:
 
 ```bash
-npm run lint
+npm run check
 ```
 
 Do not add a build tool, dependency, host permission, broad tab access, network
@@ -94,7 +98,7 @@ why.
 Before claiming docs-only or privacy changes are complete, run:
 
 ```bash
-npm run lint
+npm run check
 ```
 
 For scraper behavior changes, add or run a focused fixture that fails on the old
@@ -102,9 +106,9 @@ behavior when feasible, then rerun it after the change. For Reddit comments,
 include delayed-hydration and virtualized-comment cases when the behavior touches
 thread extraction.
 
-For popup, background, native-host, `manifest.json`, or permission changes,
-manually verify the extension flow in Chrome after reloading the unpacked
-extension.
+For toolbar action, options, background, native-host, `manifest.json`, or permission
+changes, manually verify the extension flow in Chrome after reloading the
+unpacked extension. Do not merge these changes until manual testing passes.
 
 Do not claim a fix is complete without reporting what was verified and what could
 not be verified.
@@ -134,9 +138,10 @@ not be verified.
 - Preserve the least-privilege extension model. Do not add host permissions,
   broad tab access, cookie access, network calls, or external services unless the
   user explicitly needs them and the docs explain why.
-- Preserve the native-host boundary: it receives Markdown and writes files
-  locally. It must not scrape pages, execute commands from messages, or send
-  content over the network.
+- Preserve the native-host boundary: it receives Markdown, writes files locally,
+  and may copy or open a saved Markdown file through macOS only when the matching
+  setting is enabled. It must not scrape pages, execute arbitrary commands from
+  messages, or send content over the network.
 - Keep generated filenames path-safe. Do not allow scraped page content to choose
   arbitrary filesystem paths.
 - Inspect the staged diff before commit and scan staged text for secrets.

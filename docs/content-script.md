@@ -1,7 +1,7 @@
 # Content Script
 
-`content.js` is the scraper. It runs in the active tab only after the popup
-injects it.
+`content.js` is the scraper. It runs in the active tab only after the user clicks
+the toolbar icon and the background service worker injects it.
 
 ## Responsibilities
 
@@ -11,7 +11,7 @@ injects it.
 - Convert HTML to Markdown.
 - Apply site-specific cleanup where generic extraction is not enough.
 - Generate a path-safe filename and word count.
-- Return data to the popup.
+- Return data to the background service worker.
 
 ## Metadata
 
@@ -65,5 +65,6 @@ similar jobs, and unrelated LinkedIn chrome when possible.
 
 ## Failure Shape
 
-If no article node can be found, the script returns an error object. The popup
-turns that into user-facing status text.
+If no article node can be found, the script returns an error object. The
+background service worker turns that into a toolbar error badge and latest status
+for the options page.

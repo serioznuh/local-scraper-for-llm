@@ -10,8 +10,8 @@ to scan.
   filenames, Reddit extraction, and LinkedIn job extraction.
 - [April 2026](history/2026-04.md) - Reddit comment fix and local save-path
   privacy correction.
-- [May 2026](history/2026-05.md) - Reddit hydration/thread improvements and
-  project documentation quality gates.
+- [May 2026](history/2026-05.md) - Reddit hydration/thread improvements,
+  settings/output actions, and project documentation quality gates.
 
 ## Maintenance Rules
 
