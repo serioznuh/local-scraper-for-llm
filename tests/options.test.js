@@ -266,9 +266,22 @@ test('saving settings shows a temporary top success toast', async () => {
   assert.equal(elements.banner.hidden, true);
   assert.equal(elements.toast.hidden, false);
   assert.equal(elements.toast.textContent, 'Settings saved');
-  assert.equal(elements.toast.className, 'toast banner success');
+  assert.equal(elements.toast.className, 'toast banner success toast-immediate');
 
   timers.at(-1)();
 
   assert.equal(elements.toast.hidden, true);
+});
+
+test('saving unchanged settings keeps the normal success toast animation', async () => {
+  const { elements } = await loadOptions();
+
+  assert.equal(elements.unsavedChangesToast.hidden, true);
+
+  await elements.settingsForm.listeners.submit({ preventDefault() {} });
+
+  assert.equal(elements.unsavedChangesToast.hidden, true);
+  assert.equal(elements.toast.hidden, false);
+  assert.equal(elements.toast.textContent, 'Settings saved');
+  assert.equal(elements.toast.className, 'toast banner success');
 });

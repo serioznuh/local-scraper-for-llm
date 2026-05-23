@@ -198,6 +198,26 @@
       pointer-events: auto;
     }
 
+    .toast:not([hidden]):not(.toast-immediate) {
+      animation: toast-enter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .toast.toast-immediate {
+      animation: none;
+    }
+
+    @keyframes toast-enter {
+      from {
+        opacity: 0;
+        transform: translateY(-18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     .choice {
       display: grid;
       grid-template-columns: 18px 1fr;
@@ -299,6 +319,12 @@
         width: calc(100% - (var(--mobile-inset) * 2));
         margin-inline: var(--mobile-inset);
         padding-block: var(--space-5);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toast:not([hidden]) {
+        animation: none;
       }
     }
   </style>

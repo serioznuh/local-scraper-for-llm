@@ -42,6 +42,7 @@ Reload the unpacked extension in Chrome and verify:
 - save path and output-action settings update
 - unsaved-changes top toast appears for edited settings and hides after saving
 - settings save success appears as a temporary green top toast
+- green success replaces the yellow unsaved-changes toast without a blank gap
 - toolbar success, warning, and error badges are readable
 - warning and non-settings error tooltips stay visible until the next scrape run
 - Markdown text clipboard copy works when enabled

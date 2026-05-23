@@ -74,7 +74,9 @@ paths are not stored in the repository.
 The extension has no popup. The toolbar icon is the scrape trigger. The options
 page owns durable settings, folder selection, and save-directory error recovery.
 It shows a yellow top floating toast when edited values differ from saved
-settings. Both optional output actions are off by default.
+settings. Successful settings saves use a green top floating toast; it appears
+immediately when replacing the yellow unsaved-changes toast. Both optional output
+actions are off by default.
 
 ## Privacy State
 

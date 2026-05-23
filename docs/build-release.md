@@ -23,7 +23,9 @@ The script checks:
 ## Versioning
 
 `manifest.json` is the release version source for the extension. Bump it for
-user-visible behavior changes.
+functional behavior, permission, storage, native-host, output-format, install, or
+compatibility changes based on user impact. Cosmetic UI polish can stay on the
+current version when it does not change those behavior contracts.
 
 Do not bump the version for docs-only changes unless the user explicitly wants a
 documentation release tag.

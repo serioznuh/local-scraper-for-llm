@@ -34,12 +34,14 @@ The options page stores:
 The page has no idle "ready" text. Save-directory errors appear in a persistent
 top banner because the user can fix them there. Stored scrape successes,
 warnings, and non-settings errors do not replay on settings load. Successful
-settings saves show a green top floating toast that dismisses itself.
+settings saves show a green top floating toast that dismisses itself. Standard
+toasts slide down and fade in when shown.
 
 When form values differ from the last saved settings, a yellow **Unsaved
 changes** top floating toast appears using the same banner styling as settings
 errors. It hides after the settings save succeeds or when the form returns to
-the saved values.
+the saved values. When a successful save replaces the yellow toast, the green
+success toast appears immediately so there is no blank handoff between them.
 
 ## Storage
 
