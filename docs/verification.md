@@ -37,11 +37,13 @@ After implementation:
 Reload the unpacked extension in Chrome and verify:
 
 - toolbar icon scrape trigger works
-- setup errors open Settings automatically
+- missing or unwritable save-directory errors open Settings automatically
 - folder picker populates save directory
 - save path and output-action settings update
-- settings save success appears as a temporary green top banner
+- unsaved-changes top toast appears for edited settings and hides after saving
+- settings save success appears as a temporary green top toast
 - toolbar success, warning, and error badges are readable
+- warning and non-settings error tooltips stay visible until the next scrape run
 - Markdown text clipboard copy works when enabled
 - saved-file clipboard copy works when enabled
 - macOS open-after-save works when enabled

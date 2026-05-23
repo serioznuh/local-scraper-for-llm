@@ -2,6 +2,9 @@ importScripts('settings.js');
 
 const NATIVE_HOST = 'com.scraper_llm.host';
 const DEFAULT_SAVE_DIR = '';
+const ACTION_DEFAULT_TITLE = 'Scrape page';
+const ACTION_SCRAPING_TITLE = 'Scraping page';
+const ACTION_TOOLTIP_SPACER = '\n ';
 const SETTINGS_KEY = ScraperSettings.STORAGE_KEY;
 const LAST_STATUS_KEY = 'lastStatus';
 const BADGE_DURATION_MS = 2200;
@@ -24,7 +27,10 @@ function persistSettings(patch, callback) {
     const settings = ScraperSettings.mergeSettings(currentSettings, patch);
     chrome.storage.local.set({ [SETTINGS_KEY]: settings }, () => {
       chrome.storage.local.remove('savePath', () => {
-        clearLastStatus(() => callback(settings));
+        clearLastStatus(() => {
+          resetActionFeedback();
+          callback(settings);
+        });
       });
     });
   });
@@ -32,12 +38,24 @@ function persistSettings(patch, callback) {
 
 function validateSaveMessage(message) {
   if (typeof message.content !== 'string') {
-    return 'No Markdown content was provided.';
+    return 'No Markdown content was provided';
   }
   if (typeof message.filename !== 'string' || !message.filename.trim()) {
-    return 'No filename was provided.';
+    return 'No filename was provided';
   }
   return '';
+}
+
+function trimTerminalPeriod(message) {
+  return String(message || '').trim().replace(/\.$/, '');
+}
+
+function nativeHostNotFoundMessage() {
+  return 'Native host not found. Run install_host.sh first';
+}
+
+function formatActionTitle(title) {
+  return trimTerminalPeriod(title) + ACTION_TOOLTIP_SPACER;
 }
 
 function setBadge(text, color) {
@@ -45,6 +63,20 @@ function setBadge(text, color) {
   if (color) {
     chrome.action.setBadgeBackgroundColor({ color });
   }
+}
+
+function setActionTitle(title) {
+  chrome.action.setTitle({ title: formatActionTitle(title) });
+}
+
+function resetActionFeedback() {
+  setBadge('');
+  setActionTitle(ACTION_DEFAULT_TITLE);
+}
+
+function startActionFeedback() {
+  setBadge('...', '#2672C9');
+  setActionTitle(ACTION_SCRAPING_TITLE);
 }
 
 function clearBadgeSoon() {
@@ -67,31 +99,46 @@ function openSettings() {
   chrome.runtime.openOptionsPage();
 }
 
-function reportError(message, shouldOpenSettings = true) {
+function reportError(message, options = {}) {
+  const showInSettings = options.showInSettings === true;
+  const shouldOpenSettings = options.openSettings === true;
+  const cleanMessage = trimTerminalPeriod(message);
+
   setBadge('ERR', '#B42318');
-  setLastStatus({ state: 'error', message }, () => {
+  setActionTitle(cleanMessage);
+  setLastStatus({ state: 'error', message: cleanMessage, showInSettings }, () => {
     if (shouldOpenSettings) openSettings();
   });
 }
 
 function reportWarning(message) {
+  const cleanMessage = trimTerminalPeriod(message);
+
   setBadge('WARN', '#A15C00');
-  setLastStatus({ state: 'warning', message }, clearBadgeSoon);
+  setActionTitle(cleanMessage);
+  setLastStatus({ state: 'warning', message: cleanMessage, showInSettings: false });
 }
 
 function reportSuccess(message) {
+  const cleanMessage = trimTerminalPeriod(message);
+
   setBadge('OK', '#22863A');
+  setActionTitle(ACTION_DEFAULT_TITLE);
   clearLastStatus(() => {
-    setLastStatus({ state: 'success', message }, clearBadgeSoon);
+    setLastStatus({ state: 'success', message: cleanMessage, showInSettings: false }, clearBadgeSoon);
   });
 }
 
 function buildSaveWarnings(response) {
   const warnings = [];
-  if (response.copyTextError) warnings.push('could not copy Markdown text. ' + response.copyTextError);
-  if (response.copyFileError) warnings.push('could not copy the file. ' + response.copyFileError);
-  if (response.openError) warnings.push('could not open the file. ' + response.openError);
+  if (response.copyTextError) warnings.push('could not copy Markdown text. ' + trimTerminalPeriod(response.copyTextError));
+  if (response.copyFileError) warnings.push('could not copy the file. ' + trimTerminalPeriod(response.copyFileError));
+  if (response.openError) warnings.push('could not open the file. ' + trimTerminalPeriod(response.openError));
   return warnings;
+}
+
+function isSaveDirectoryError(response) {
+  return response?.errorCode === 'saveDirectory';
 }
 
 function saveScrapeResult(data, settings) {
@@ -108,14 +155,20 @@ function saveScrapeResult(data, settings) {
     content: data.content,
     clipboardMode: settings.clipboardMode,
     openAfterSave: settings.openAfterSave
-  }, (response) => {
+    }, (response) => {
     if (chrome.runtime.lastError) {
-      reportError('Native host not found. Run install_host.sh first. (' + chrome.runtime.lastError.message + ')');
+      reportError(nativeHostNotFoundMessage());
       return;
     }
 
     if (!response?.success) {
-      reportError('Could not save the file. ' + (response?.error || 'Check your save directory and native host.'));
+      const detail = trimTerminalPeriod(response?.error || 'Check your save directory and native host');
+      const message = 'Could not save the file. ' + detail;
+      const showInSettings = isSaveDirectoryError(response);
+      reportError(message, {
+        showInSettings,
+        openSettings: showInSettings
+      });
       return;
     }
 
@@ -132,28 +185,31 @@ function saveScrapeResult(data, settings) {
 function scrapeTab(tab) {
   loadSettings((settings) => {
     if (!settings.savePath) {
-      reportError('Choose a save directory before scraping.');
+      reportError('Choose a save directory before scraping', {
+        showInSettings: true,
+        openSettings: true
+      });
       return;
     }
 
     if (!tab?.id) {
-      reportError('No active tab is available to scrape.');
+      reportError('No active tab is available to scrape');
       return;
     }
 
-    setBadge('...', '#2672C9');
+    startActionFeedback();
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['content.js']
     }, (results) => {
       if (chrome.runtime.lastError) {
-        reportError('Could not read this page. ' + chrome.runtime.lastError.message);
+        reportError('Could not read this page. ' + trimTerminalPeriod(chrome.runtime.lastError.message));
         return;
       }
 
       const data = results?.[0]?.result;
       if (!data || data.error) {
-        reportError('Could not extract content. Try a regular web page with readable text.');
+        reportError('Could not extract content. Try a regular web page with readable text');
         return;
       }
 
@@ -174,7 +230,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (chrome.runtime.lastError) {
         sendResponse({
           success: false,
-          error: 'Native host not found. Run install_host.sh first. (' + chrome.runtime.lastError.message + ')'
+          error: nativeHostNotFoundMessage()
         });
         return;
       }

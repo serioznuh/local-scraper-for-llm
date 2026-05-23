@@ -65,6 +65,8 @@ response includes:
 - `copiedText`
 - `copiedFile`
 - `opened`
+- `errorCode: "saveDirectory"` when saving fails because the directory is
+  missing, cannot be created, or cannot be written
 - `copyTextError` when saving succeeded but copying Markdown text failed
 - `copyFileError` when saving succeeded but copying the file failed
 - `openError` when saving succeeded but opening failed

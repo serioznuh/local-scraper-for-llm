@@ -46,8 +46,8 @@ install_host.sh
 7. The Python host creates the target directory if needed, writes the file,
    copies Markdown text if `clipboardMode` is `markdown`, copies the file if
    `clipboardMode` is `file`, and opens it if `openAfterSave` is enabled.
-8. Success, warning, or error returns through the toolbar badge and latest status
-   stored for the options page.
+8. Success, warning, or error returns through the toolbar badge and tooltip.
+   Only save-directory errors are stored for display in the options page.
 
 ## Boundaries
 

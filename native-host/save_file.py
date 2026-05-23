@@ -28,21 +28,21 @@ def send_message(message):
 
 def validate_filename(filename):
     if not isinstance(filename, str):
-        raise ValueError('Filename must be a string.')
+        raise ValueError('Filename must be a string')
     if not filename or filename in ('.', '..'):
-        raise ValueError('Filename is required.')
+        raise ValueError('Filename is required')
     if '\x00' in filename or '/' in filename or '\\' in filename:
-        raise ValueError('Filename must not contain path separators.')
+        raise ValueError('Filename must not contain path separators')
     if os.path.isabs(filename) or os.path.basename(filename) != filename:
-        raise ValueError('Filename must not contain a path.')
+        raise ValueError('Filename must not contain a path')
     if not filename.lower().endswith('.md'):
-        raise ValueError('Filename must end with .md.')
+        raise ValueError('Filename must end with .md')
     return filename
 
 
 def open_saved_file(filepath):
     if sys.platform != 'darwin':
-        return False, 'Open after save is macOS only.'
+        return False, 'Open after save is macOS only'
 
     try:
         subprocess.run(
@@ -61,7 +61,7 @@ def open_saved_file(filepath):
 
 def copy_markdown_to_clipboard(content):
     if sys.platform != 'darwin':
-        return False, 'Copy Markdown text is macOS only.'
+        return False, 'Copy Markdown text is macOS only'
 
     try:
         subprocess.run(
@@ -81,7 +81,7 @@ def copy_markdown_to_clipboard(content):
 
 def copy_saved_file_to_clipboard(filepath):
     if sys.platform != 'darwin':
-        return False, 'Copy saved file is macOS only.'
+        return False, 'Copy saved file is macOS only'
 
     try:
         subprocess.run(
@@ -141,17 +141,40 @@ def handle_save(msg):
     open_after_save = msg.get('openAfterSave') is True
 
     if not isinstance(directory, str) or not directory.strip():
-        return {'success': False, 'error': 'Save directory is required.'}
+        return {
+            'success': False,
+            'errorCode': 'saveDirectory',
+            'error': 'Save directory is required'
+        }
     if not isinstance(content, str):
-        return {'success': False, 'error': 'Content must be a string.'}
+        return {'success': False, 'error': 'Content must be a string'}
 
     try:
         safe_filename = validate_filename(filename)
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+    try:
         os.makedirs(directory, exist_ok=True)
-        filepath = os.path.join(directory, safe_filename)
+    except OSError as e:
+        return {
+            'success': False,
+            'errorCode': 'saveDirectory',
+            'error': str(e)
+        }
+
+    filepath = os.path.join(directory, safe_filename)
+    try:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(content)
+    except OSError as e:
+        return {
+            'success': False,
+            'errorCode': 'saveDirectory',
+            'error': str(e)
+        }
 
+    try:
         response = {
             'success': True,
             'path': filepath,

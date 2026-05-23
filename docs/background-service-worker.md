@@ -1,7 +1,7 @@
 # Background Service Worker
 
 `background.js` is the Manifest V3 service worker. It coordinates toolbar-icon
-scraping, settings, status badges, and native messaging.
+scraping, settings, status badges, action tooltips, and native messaging.
 
 ## Constants
 
@@ -17,18 +17,22 @@ their own save directory from the options page.
 
 `chrome.action.onClicked` is the scrape trigger. The worker loads settings,
 opens Settings if no save directory is configured, injects `content.js`, sends
-the result to the native host, and reports progress through badge text.
+the result to the native host, and reports progress through badge text and the
+action tooltip. Tooltip titles include a trailing spacer line because Chrome may
+append its own site-access context in the same tooltip.
 
 ### `getSettings`
 
 Reads the versioned `settings` object from `chrome.storage.local`, normalizes it
 through `settings.js`, migrates the legacy `savePath` key when present, and
-returns the normalized settings and latest status.
+returns the normalized settings and latest status. The options page only shows
+stored statuses marked for settings display.
 
 ### `saveSettings`
 
 Merges the provided settings patch with defaults and writes the normalized
-settings object to `chrome.storage.local`.
+settings object to `chrome.storage.local`. Saving settings clears the latest
+status, badge, and action tooltip.
 
 ### `chooseDirectory`
 
@@ -48,7 +52,10 @@ then sends a native message with:
 - `openAfterSave`
 
 If Chrome cannot reach the native host, it returns an error telling the user to
-run `install_host.sh`.
+run `install_host.sh`. If the native host returns `errorCode: "saveDirectory"`,
+the worker opens Settings and stores the error for the options-page banner. Other
+save, extraction, clipboard, and open-after-save failures stay on the toolbar
+badge and tooltip.
 
 ## Service Worker Boundary
 
@@ -64,5 +71,5 @@ Changes here need extension-level verification in Chrome:
 2. Open Settings and update save path/output actions.
 3. Confirm the folder picker can populate the save directory.
 4. Click the toolbar icon to scrape a page.
-5. Confirm badges, save, Markdown text clipboard copy, saved-file clipboard copy,
-   open-after-save, and error states still show useful text.
+5. Confirm badges, tooltips, save, Markdown text clipboard copy, saved-file
+   clipboard copy, open-after-save, and error states still show useful text.
