@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function setBusy(isBusy) {
     saveButton.disabled = isBusy;
-    saveButton.textContent = isBusy ? 'Saving...' : 'Save settings';
+    saveButton.textContent = isBusy ? 'Saving...' : 'Save Settings';
   }
 
   function setDirectoryBusy(isBusy) {
