@@ -10,13 +10,13 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function createElement({ value = '', checked = false, hidden = false } = {}) {
+function createElement({ value = '', checked = false, hidden = false, textContent = '' } = {}) {
   return {
     value,
     checked,
     hidden,
     disabled: false,
-    textContent: '',
+    textContent,
     className: '',
     listeners: {},
     addEventListener(type, handler) {
@@ -40,7 +40,7 @@ async function loadOptions({
     savePath: createElement(),
     chooseDirectoryBtn: createElement(),
     openAfterSave: createElement(),
-    saveSettingsBtn: createElement(),
+    saveSettingsBtn: createElement({ textContent: 'Save Settings' }),
     banner: createElement({ hidden: true }),
     status: createElement()
   };
@@ -129,6 +129,7 @@ test('saving settings shows a temporary top success banner', async () => {
 
   await elements.settingsForm.listeners.submit({ preventDefault() {} });
 
+  assert.equal(elements.saveSettingsBtn.textContent, 'Save Settings');
   assert.equal(elements.banner.hidden, false);
   assert.equal(elements.banner.textContent, 'Settings saved');
   assert.equal(elements.banner.className, 'banner success');
