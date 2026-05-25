@@ -76,6 +76,25 @@
         ].join(', ');
     }
 
+    function queryRedditCommentContainers(root = document) {
+        const selector = getRedditCommentContainerSelector();
+        const seen = new Set();
+        const matches = [];
+
+        function addMatch(el) {
+            if (!el || seen.has(el)) return;
+            seen.add(el);
+            matches.push(el);
+        }
+
+        if (root.querySelectorAll) {
+            Array.from(root.querySelectorAll(selector)).forEach(addMatch);
+        }
+        queryAllIncludingShadow(root, selector).forEach(addMatch);
+
+        return matches;
+    }
+
     function isRedditAvatarImage(node, src = '', alt = '') {
         if (!node) return false;
         const normalizedAlt = normalizeText(alt || node.getAttribute('alt') || '');
@@ -279,13 +298,16 @@
         });
         const commentStartIndex = commentStart ? orderedElements.indexOf(commentStart) : -1;
 
-        return queryAllIncludingShadow(root, getRedditCommentContainerSelector())
-            .filter(el => isVisibleElement(el))
-            .filter(el => !titleEl || !el.contains(titleEl))
-            .filter(el => {
-                if (commentStartIndex === -1 || el === commentStart) return true;
-                return orderedElements.indexOf(el) >= commentStartIndex;
-            });
+        const candidates = queryRedditCommentContainers(root)
+            .filter(el => isVisibleElement(el) || cleanText(el.innerText || el.textContent || '').length > 20)
+            .filter(el => !titleEl || !el.contains(titleEl));
+        const afterCommentStart = candidates.filter(el => {
+            if (commentStartIndex === -1 || el === commentStart) return true;
+            const elementIndex = orderedElements.indexOf(el);
+            return elementIndex === -1 || elementIndex >= commentStartIndex;
+        });
+
+        return afterCommentStart.length > 0 ? afterCommentStart : candidates;
     }
 
     function hasHydratedRedditComments(root = document) {
@@ -859,7 +881,32 @@
                 container,
                 'time[datetime], time, faceplate-timeago, [datetime]'
             ).find(el => getTimestampTextFromElement(el));
-            return getTimestampTextFromElement(timeEl);
+            const timestamp = getTimestampTextFromElement(timeEl);
+            if (timestamp) return timestamp;
+
+            const headerLines = (container.innerText || '')
+                .split(/\n+/)
+                .map(line => cleanText(line))
+                .filter(Boolean)
+                .slice(0, 8);
+            const relativeTimestamp = headerLines.find(line => /^(?:edited\s+)?(?:\d+\s*(?:m|h|d|w|mo|y)\s+ago|just now|today|yesterday)$/i.test(line));
+            return formatDateOnlyTimestamp(relativeTimestamp || '');
+        }
+
+        function extractOwnCommentBodyNodes(container) {
+            const id = getRedditCommentId(container);
+            const expectedBodyId = id ? `${id}-comment-rtjson-content` : '';
+            const bodyCandidates = queryAllIncludingShadow(
+                container,
+                'p, blockquote, pre, ul, ol, figure, img, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
+            );
+            const exactBodyNode = expectedBodyId
+                ? bodyCandidates.find(node => node.id === expectedBodyId)
+                : null;
+            if (exactBodyNode) return [exactBodyNode];
+
+            return filterOutNestedNodes(bodyCandidates)
+                .filter(node => closestCrossShadow(node, commentContainerSelector) === container);
         }
 
         function extractComment(container) {
@@ -874,13 +921,10 @@
                 container.dataset?.author ||
                 ''
             );
-            const user = cleanRedditAuthor(authorEl ? authorEl.textContent : attrUser);
-            if (!user || /^automoderator$/i.test(user)) return null;
+            const user = cleanRedditAuthor(attrUser || (authorEl ? authorEl.textContent : ''));
+            if (!user || /^(automoderator|.*-mod-bot)$/i.test(user)) return null;
 
-            const bodyNodes = filterOutNestedNodes(queryWithinComment(
-                container,
-                'p, blockquote, pre, ul, ol, figure, img, [slot="comment"], [slot="comment-body"], [slot="body"], [id$="-comment-rtjson-content"]'
-            ));
+            const bodyNodes = extractOwnCommentBodyNodes(container);
             const body = bodyNodes
                 .map(node => htmlToMarkdown(node, false).trim())
                 .filter(Boolean)
@@ -888,7 +932,11 @@
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
-            if (!body || /i am a bot, and this action was performed automatically/i.test(body)) return null;
+            if (!body ||
+                /i am a bot, and this action was performed automatically/i.test(body) ||
+                /tl;dr generated automatically after/i.test(body)) {
+                return null;
+            }
             if (/^\[(deleted|removed)]$/i.test(body)) return null;
 
             return {
@@ -962,7 +1010,12 @@
     function extractRedditCommentsFromMarkdown(fullMarkdown) {
         if (!isRedditPage() || !fullMarkdown) return '';
 
-        const markerCandidates = ['Join the conversation', 'Sort by:', 'Open comment sort options'];
+        const markerCandidates = [
+            'Join the conversation',
+            'Comments Section',
+            'Sort by:',
+            'Open comment sort options'
+        ];
         const markerIndex = markerCandidates
             .map(marker => fullMarkdown.indexOf(marker))
             .filter(index => index !== -1)
@@ -1000,7 +1053,12 @@
                 continue;
             }
 
-            if (line.includes('Join the conversation') || line.startsWith('Sort by:') || line.includes('Open comment sort options')) continue;
+            if (
+                line.includes('Join the conversation') ||
+                line.includes('Comments Section') ||
+                line.startsWith('Sort by:') ||
+                line.includes('Open comment sort options')
+            ) continue;
             if (line.startsWith('[More replies]')) {
                 flushCurrent();
                 continue;
@@ -1036,15 +1094,126 @@
 
         flushCurrent();
 
-        return comments
-            .map(comment => `---\n\n## ${comment.user}\n\n${comment.body}`)
-            .join('\n\n')
-            .trim();
+        if (comments.length === 0) return '';
+
+        return [
+            '## Comments',
+            comments
+                .map(comment => `---\n\n## ${comment.user}\n\n${comment.body}`)
+                .join('\n\n')
+        ].join('\n\n').trim();
+    }
+
+    function extractRedditCommentsFromVisibleText(visibleText) {
+        if (!isRedditPage() || !visibleText) return '';
+
+        const lines = visibleText
+            .split(/\n+/)
+            .map(line => cleanText(line))
+            .filter(Boolean);
+        const markerIndex = lines.findIndex(line => (
+            line === 'Sort by:' ||
+            line.includes('Comments Section') ||
+            line.includes('Join the conversation') ||
+            line.includes('Search Comments')
+        ));
+        if (markerIndex === -1) return '';
+
+        const comments = [];
+        let i = markerIndex + 1;
+
+        function isDateLine(line) {
+            return /^(?:edited\s+)?(?:\d+\s*(?:m|h|d|w|mo|y)\s+ago|just now|today|yesterday|\d{4}-\d{2}-\d{2})$/i.test(line);
+        }
+
+        function isPlainAuthorLine(line) {
+            const author = cleanRedditAuthor(line);
+            if (!author) return false;
+            if (/^\[deleted]$/i.test(author)) return true;
+            if (!/^[A-Za-z0-9_-]{2,24}$/.test(author)) return false;
+            return !/^(reply|share|vote|upvote|downvote|sort|edited)$/i.test(author);
+        }
+
+        function headerAt(index) {
+            const author = cleanRedditAuthor(lines[index]);
+            if (!isPlainAuthorLine(author)) return null;
+
+            for (let j = index + 1; j < Math.min(lines.length, index + 8); j++) {
+                const line = lines[j];
+                if (line === '•' || /^(op|mod)$/i.test(line)) continue;
+                if (isDateLine(line)) {
+                    return {
+                        author,
+                        timestamp: formatDateOnlyTimestamp(line),
+                        nextIndex: j + 1
+                    };
+                }
+            }
+
+            return null;
+        }
+
+        function isNoiseLine(line) {
+            return line === '•' ||
+                /^(reply|share|vote|upvote|downvote)$/i.test(line) ||
+                /^(op|mod)$/i.test(line) ||
+                /^edited\s+/i.test(line) ||
+                isDateLine(line) ||
+                /^\d+\s+more repl(?:y|ies)$/i.test(line);
+        }
+
+        function isStopLine(line) {
+            return /^(community info section|community information|created [a-z]{3} \d{1,2}, \d{4}|public|user flair|community resources|official claude resources|r\/[a-z0-9_]+ rules|reddit rules|related communities|moderators|installed apps)$/i.test(line);
+        }
+
+        while (i < lines.length) {
+            if (isStopLine(lines[i])) break;
+
+            const header = headerAt(i);
+            if (!header) {
+                i++;
+                continue;
+            }
+
+            i = header.nextIndex;
+            const bodyLines = [];
+            while (i < lines.length) {
+                if (isStopLine(lines[i]) || headerAt(i)) break;
+                if (!isNoiseLine(lines[i])) bodyLines.push(lines[i]);
+                i++;
+            }
+
+            const body = bodyLines.join('\n\n').trim();
+            const isNoiseUser = /^(automoderator|claudeai-mod-bot)$/i.test(header.author);
+            const isBotBody = /i am a bot, and this action was performed automatically/i.test(body) ||
+                /tl;dr generated automatically after/i.test(body);
+            if (!isNoiseUser && !isBotBody && body && !/^\[(deleted|removed)]$/i.test(body)) {
+                comments.push({
+                    user: header.author,
+                    timestamp: header.timestamp,
+                    body
+                });
+            }
+        }
+
+        if (comments.length === 0) return '';
+
+        return [
+            '## Comments',
+            comments
+                .map(comment => {
+                    const timestampLabel = comment.timestamp ? ` · ${comment.timestamp}` : '';
+                    return `---\n\n## ${comment.user}${timestampLabel}\n\n${comment.body}`;
+                })
+                .join('\n\n')
+        ].join('\n\n').trim();
     }
 
     function buildRedditMarkdown(fullMarkdown) {
         const redditLead = extractRedditLeadMarkdown();
-        const redditComments = extractRedditCommentsMarkdown() || extractRedditCommentsFromMarkdown(fullMarkdown);
+        const redditComments = extractRedditCommentsMarkdown() ||
+            extractRedditCommentsFromMarkdown(fullMarkdown) ||
+            extractRedditCommentsFromVisibleText(document.body?.innerText || '');
 
         if (redditLead || redditComments) {
             return [redditLead, redditComments].filter(Boolean).join('\n\n').trim();

@@ -56,7 +56,9 @@ date-only `YYYY-MM-DD` values.
 
 The scraper waits for hydrated comments and prompts comment loading by scrolling
 near the comment section. It avoids exporting Reddit avatar/profile images and
-filters common AutoModerator/bot boilerplate.
+filters common AutoModerator/bot boilerplate. When Reddit comments are visible
+as rendered page text but not available through structured comment elements, a
+flat visible-text fallback keeps loaded comments and stops before sidebar chrome.
 
 ## LinkedIn Job State
 

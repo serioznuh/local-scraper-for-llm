@@ -42,8 +42,10 @@ Reddit.
 ## Reddit Behavior
 
 Reddit extraction uses shadow-DOM-aware traversal. It waits for hydration,
-prompts comment loading by scrolling near the comments area, and restores the
-original scroll position when possible.
+prompts comment loading by scrolling near the comments area, recognizes current
+comment fallback markers, and can parse visible page text when Reddit exposes
+comments through rendered text but not the normal Markdown walk. Text fallback
+stops before the subreddit sidebar/community chrome when possible.
 
 Exports keep:
 
