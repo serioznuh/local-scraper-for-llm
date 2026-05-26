@@ -30,19 +30,15 @@ directly.
 
 Read [docs/current-state.md](docs/current-state.md) for the active project state.
 
-Core facts:
+Core facts agents need before editing:
 
-- Manifest V3 extension loaded directly from this repository.
-- `content.js` extracts metadata, readable content, Markdown, and filenames.
-- `settings.js` owns default settings, migration, normalization, and summaries.
-- `background.js` handles toolbar-icon scraping, options messages, local
-  settings, status badges, and native messaging.
-- `options.html` and `options.js` provide save-path and output-action settings.
-- `native-host/save_file.py` receives Markdown, writes files locally, and can
-  copy or open saved Markdown files on macOS when the user enables those
-  settings.
-- `install_host.sh` registers the native host for the current Chrome user.
+- Manifest V3 extension loaded directly from this repository; there is no build
+  output or bundled runtime.
+- Scraping, settings, background worker, options UI, native-host, privacy,
+  release, and verification details each have an owner doc listed below.
 - `DEFAULT_SAVE_DIR` must stay empty. Users configure their own save path.
+- Permission expansion, destructive Git operations, force pushes, and
+  private-data actions require explicit user approval.
 
 ## Important Docs
 
@@ -58,26 +54,47 @@ Core facts:
   permissions, page access, and private data handling.
 - [docs/build-release.md](docs/build-release.md) - build, release, and versioning.
 - [docs/verification.md](docs/verification.md) - verification expectations.
+- [docs/future-improvements.md](docs/future-improvements.md) - improvement backlog.
 - [docs/history.md](docs/history.md) - chronological history index and archives.
+
+## Documentation Ownership
+
+When behavior changes, update the owner doc in the same change:
+
+| Change area | Owner doc |
+| --- | --- |
+| Active runtime shape, supported behavior, settings, privacy state, project workflow | [docs/current-state.md](docs/current-state.md) |
+| Component boundaries and message flow | [docs/architecture.md](docs/architecture.md) |
+| Extraction, Markdown conversion, metadata, Reddit, LinkedIn behavior | [docs/content-script.md](docs/content-script.md) |
+| Service worker messages, settings loading, badge/status behavior, native relay | [docs/background-service-worker.md](docs/background-service-worker.md) |
+| Toolbar action, options UI, save-path state, output actions, `chrome.storage.local` | [docs/action-options-ui-and-storage.md](docs/action-options-ui-and-storage.md) |
+| Native messaging install and local file-writing boundary | [docs/native-host.md](docs/native-host.md) |
+| Permissions, page access, private data, local outputs, screenshots, fixtures | [docs/permissions-and-privacy.md](docs/permissions-and-privacy.md) |
+| Build, release, versioning, extension packaging | [docs/build-release.md](docs/build-release.md) |
+| Verification tiers, manual Chrome checks, PR verification notes | [docs/verification.md](docs/verification.md) |
+| Future backlog and deferred feature notes | [docs/future-improvements.md](docs/future-improvements.md) |
+| Chronological implementation history | [docs/history.md](docs/history.md) |
 
 ## Documentation Maintenance
 
 Documentation should stay useful as working context, not become a dumping ground:
 
-- Use `AGENTS.md` for operating rules, project boundaries, safety gates, and
-  command expectations; keep deep behavior details in topic docs.
-- Use `README.md` for human setup, common commands, extension loading, and
-  high-level behavior only.
+- `AGENTS.md` is the agent operating contract: boundaries, safety gates,
+  commands, documentation ownership, scraper rules, privacy, and PR workflow.
+- `README.md` is for human setup, common commands, extension loading, and
+  high-level behavior.
 - Use `docs/current-state.md` for the current system snapshot, not changelog
   entries.
 - Update only the owner doc for a behavior change.
 - Use `docs/history.md` as a chronological index. Detailed history belongs in
   dated archive files under `docs/history/`, ordered oldest to latest.
-- Treat 200 lines as a review trigger, not an automatic failure. Split or archive
-  when a doc crosses its soft budget without a clear reason to stay whole.
-- Soft budgets: `AGENTS.md` 180, `README.md` 220, `current-state.md` 180,
-  `verification.md` 180, normal topic docs 150. Start a new history archive when
-  the month changes or the current archive becomes hard to scan.
+- Future agents should not run a separate documentation audit by default. They
+  read this file automatically, update the owner doc listed above, and run
+  `npm run check`. `tests/docs_contract.test.js` catches missing sections,
+  broken local links, oversize docs, and history leaking into current-state docs.
+
+Budget limits: `AGENTS.md` 180 lines, `README.md` 220, `current-state.md` 180,
+`verification.md` 180, normal topic docs 150, history index 80, history archive 260.
 
 ## Commands
 
@@ -148,32 +165,16 @@ not be verified.
 
 ## GitHub Workflow
 
-Use GitHub PRs as the default tracking path. PRs are for visibility, diff review,
-and follow-up questions; they are not a manual approval gate unless the user
-explicitly asks to pause before merge. Open normal ready PRs by default, not draft
-PRs, then merge and push `main` after successful verification unless the user asks
-to keep the PR open.
+Use GitHub PRs by default. PRs show the exact diff, keep history readable, and are
+not a manual approval gate unless the user asks to pause before merge.
 
-1. Start from clean `main`.
-2. Create a focused feature branch.
-3. Make scoped changes with tests/docs.
-4. Run verification.
-5. Inspect `git diff` and `git status --short`.
-6. Scan staged text for secrets before committing.
-7. Commit with a clear message.
-8. Push the branch and open a ready PR with a title that starts with `[codex]`
-   and explains what changed and how it was checked.
-9. Merge to `main` after successful verification unless the user asked to keep
-   the PR open for review.
-10. Push updated `main`.
-11. Delete the merged PR branch on GitHub and locally, then prune stale
-    remote-tracking refs.
+Default flow: branch from `main`, change, verify, inspect diff/status, scan secrets,
+commit, push, open a ready `[codex]` PR, merge unless asked to keep it open, push
+`main`, then delete the merged branch locally and remotely.
 
-Keep long-lived branches limited to `main` unless the user explicitly asks for a
-temporary branch to remain available. Squash-merged branches still need cleanup
-even though their original commit hashes are not ancestors of `main`; confirm the
-patch landed before deleting them.
+Keep long-lived branches limited to `main` unless the user asks for a temporary
+branch to remain. Squash-merged branches still need cleanup; confirm the patch
+landed before deleting.
 
 This workflow does not override safety gates. Ask before destructive Git
-operations, force pushes, broad permission changes, or any action that may expose
-or modify private data.
+operations, force pushes, broad permission changes, or private-data actions.
