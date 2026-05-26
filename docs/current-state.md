@@ -59,16 +59,19 @@ nested reply structure. Absolute Reddit timestamps are formatted as date-only
 `author → parent`; once Markdown heading depth is capped, deeper replies add a
 compact depth marker such as `d4`.
 
-The scraper waits for hydrated comments and prompts comment loading by scrolling
-near the comment section. It avoids exporting Reddit avatar/profile images and
-filters common AutoModerator/bot boilerplate. When Reddit comments are visible
-as rendered page text but not available through structured comment elements, a
-flat visible-text fallback keeps loaded comments and stops before sidebar chrome.
-An optional Reddit-only score filter can keep comments at or above a configured
-minimum score. When that filter is enabled, below-threshold or unknown-score
-ancestors are retained only when they provide context for a kept reply and are
-labeled `context only`; unrelated low-score branches and unscored fallback
-comments are not used.
+The scraper bounds Reddit lead extraction to the current post container when
+Reddit exposes one, so promoted media outside the post is not exported as post
+content. It waits for hydrated comments and prompts comment loading by scrolling
+near the comment section, then walks from the last mounted comment to trigger
+lazy-loaded tail comments before export. It avoids exporting Reddit
+avatar/profile images and filters common AutoModerator/bot boilerplate. When
+Reddit comments are visible as rendered page text but not available through
+structured comment elements, a flat visible-text fallback keeps loaded comments
+and stops before sidebar chrome. An optional Reddit-only score filter can keep
+comments at or above a configured minimum score. When that filter is enabled,
+below-threshold or unknown-score ancestors are retained only when they provide
+context for a kept reply and are labeled `context only`; unrelated low-score
+branches and unscored fallback comments are not used.
 
 ## LinkedIn Job State
 

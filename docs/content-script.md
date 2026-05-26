@@ -43,9 +43,10 @@ Reddit.
 
 Reddit extraction uses shadow-DOM-aware traversal. It waits for hydration,
 prompts comment loading by scrolling near the comments area, recognizes current
-comment fallback markers, and can parse visible page text when Reddit exposes
-comments through rendered text but not the normal Markdown walk. Text fallback
-stops before the subreddit sidebar/community chrome when possible.
+comment fallback markers, scrolls from the last mounted comment to prompt lazy
+tail comments, and can parse visible page text when Reddit exposes comments
+through rendered text but not the normal Markdown walk. Text fallback stops
+before the subreddit sidebar/community chrome when possible.
 
 Exports keep:
 
@@ -56,6 +57,10 @@ Exports keep:
 - comment score when available on Reddit's structured comment elements
 - deleted-author comments with visible bodies
 - nested reply structure
+
+Lead extraction prefers Reddit's current post container when available. That
+keeps genuine post text and post-owned media while avoiding promoted media or
+other non-post elements that Reddit may place before the comment box.
 
 Parallel replies under one parent remain siblings in Markdown. Structured reply
 headings use `author → parent`; Markdown heading depth is still used as the
