@@ -52,12 +52,13 @@ Settings live in `chrome.storage.local` under the `settings` key:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "savePath": "",
   "clipboardMode": "off",
   "openAfterSave": false,
   "redditCommentScoreFilterEnabled": false,
-  "redditCommentMinScore": 2
+  "redditCommentMinScore": 2,
+  "redditTrivialCommentFilterEnabled": false
 }
 ```
 

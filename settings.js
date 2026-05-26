@@ -1,7 +1,7 @@
 (function(root) {
   'use strict';
 
-  const SETTINGS_VERSION = 2;
+  const SETTINGS_VERSION = 3;
   const STORAGE_KEY = 'settings';
   const CLIPBOARD_MODES = Object.freeze(['off', 'markdown', 'file']);
   const DEFAULT_REDDIT_COMMENT_MIN_SCORE = 2;
@@ -11,7 +11,8 @@
     clipboardMode: 'off',
     openAfterSave: false,
     redditCommentScoreFilterEnabled: false,
-    redditCommentMinScore: DEFAULT_REDDIT_COMMENT_MIN_SCORE
+    redditCommentMinScore: DEFAULT_REDDIT_COMMENT_MIN_SCORE,
+    redditTrivialCommentFilterEnabled: false
   });
 
   function isPlainObject(value) {
@@ -54,7 +55,8 @@
       clipboardMode: normalizeClipboardMode(source),
       openAfterSave: normalizeBoolean(source.openAfterSave),
       redditCommentScoreFilterEnabled: normalizeBoolean(source.redditCommentScoreFilterEnabled),
-      redditCommentMinScore: normalizeInteger(source.redditCommentMinScore, DEFAULT_REDDIT_COMMENT_MIN_SCORE)
+      redditCommentMinScore: normalizeInteger(source.redditCommentMinScore, DEFAULT_REDDIT_COMMENT_MIN_SCORE),
+      redditTrivialCommentFilterEnabled: normalizeBoolean(source.redditTrivialCommentFilterEnabled)
     };
   }
 

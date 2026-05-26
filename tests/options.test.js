@@ -32,7 +32,8 @@ async function loadOptions({
     clipboardMode: 'file',
     openAfterSave: true,
     redditCommentScoreFilterEnabled: false,
-    redditCommentMinScore: 2
+    redditCommentMinScore: 2,
+    redditTrivialCommentFilterEnabled: false
   },
   lastStatus = null,
   chooseDirectoryResponse = { success: true, directory: '/Users/me/Chosen' }
@@ -49,6 +50,7 @@ async function loadOptions({
     openAfterSave: createElement(),
     redditCommentScoreFilterEnabled: createElement(),
     redditCommentMinScore: createElement(),
+    redditTrivialCommentFilterEnabled: createElement(),
     saveSettingsBtn: createElement({ textContent: 'Save Settings' }),
     toast: createElement({ hidden: true }),
     unsavedChangesToast: createElement({ hidden: true }),
@@ -243,13 +245,15 @@ test('options page renders Reddit score filter settings', async () => {
       clipboardMode: 'off',
       openAfterSave: false,
       redditCommentScoreFilterEnabled: true,
-      redditCommentMinScore: 4
+      redditCommentMinScore: 4,
+      redditTrivialCommentFilterEnabled: true
     }
   });
 
   assert.equal(elements.redditCommentScoreFilterEnabled.checked, true);
   assert.equal(elements.redditCommentMinScore.value, '4');
   assert.equal(elements.redditCommentMinScore.disabled, false);
+  assert.equal(elements.redditTrivialCommentFilterEnabled.checked, true);
 });
 
 test('Reddit score minimum input is disabled until filtering is enabled', async () => {
@@ -265,25 +269,28 @@ test('Reddit score minimum input is disabled until filtering is enabled', async 
   assert.equal(elements.unsavedChangesToast.hidden, false);
 });
 
-test('saving settings includes Reddit score filter settings', async () => {
+test('saving settings includes Reddit comment filter settings', async () => {
   const { elements, messages } = await loadOptions();
 
   elements.redditCommentScoreFilterEnabled.checked = true;
   elements.redditCommentScoreFilterEnabled.listeners.change();
   elements.redditCommentMinScore.value = '3';
   elements.redditCommentMinScore.listeners.input();
+  elements.redditTrivialCommentFilterEnabled.checked = true;
+  elements.redditTrivialCommentFilterEnabled.listeners.change();
 
   await elements.settingsForm.listeners.submit({ preventDefault() {} });
 
   assert.deepEqual(plain(messages.at(-1)), {
     action: 'saveSettings',
     settings: {
-      version: 2,
+      version: 3,
       savePath: '/Users/me/Scrapes',
       clipboardMode: 'file',
       openAfterSave: true,
       redditCommentScoreFilterEnabled: true,
-      redditCommentMinScore: 3
+      redditCommentMinScore: 3,
+      redditTrivialCommentFilterEnabled: true
     }
   });
 });
