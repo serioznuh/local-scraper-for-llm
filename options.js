@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chooseDirectoryButton = document.getElementById('chooseDirectoryBtn');
   const clipboardModeInputs = Array.from(document.querySelectorAll('input[name="clipboardMode"]'));
   const openAfterSaveInput = document.getElementById('openAfterSave');
+  const redditCommentScoreFilterEnabledInput = document.getElementById('redditCommentScoreFilterEnabled');
+  const redditCommentMinScoreInput = document.getElementById('redditCommentMinScore');
   const saveButton = document.getElementById('saveSettingsBtn');
   const toast = document.getElementById('toast');
   const unsavedChangesToast = document.getElementById('unsavedChangesToast');
@@ -63,12 +65,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     chooseDirectoryButton.disabled = isBusy;
   }
 
+  function updateRedditScoreFilterState() {
+    redditCommentMinScoreInput.disabled = !redditCommentScoreFilterEnabledInput.checked;
+  }
+
   function readFormSettings() {
     const selectedClipboardMode = clipboardModeInputs.find(input => input.checked)?.value || 'off';
     return ScraperSettings.normalizeSettings({
       savePath: savePathInput.value,
       clipboardMode: selectedClipboardMode,
-      openAfterSave: openAfterSaveInput.checked
+      openAfterSave: openAfterSaveInput.checked,
+      redditCommentScoreFilterEnabled: redditCommentScoreFilterEnabledInput.checked,
+      redditCommentMinScore: redditCommentMinScoreInput.value
     });
   }
 
@@ -78,12 +86,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       input.checked = input.value === settings.clipboardMode;
     }
     openAfterSaveInput.checked = settings.openAfterSave;
+    redditCommentScoreFilterEnabledInput.checked = settings.redditCommentScoreFilterEnabled;
+    redditCommentMinScoreInput.value = String(settings.redditCommentMinScore);
+    updateRedditScoreFilterState();
   }
 
   function settingsAreEqual(a, b) {
     return a.savePath === b.savePath &&
       a.clipboardMode === b.clipboardMode &&
-      a.openAfterSave === b.openAfterSave;
+      a.openAfterSave === b.openAfterSave &&
+      a.redditCommentScoreFilterEnabled === b.redditCommentScoreFilterEnabled &&
+      a.redditCommentMinScore === b.redditCommentMinScore;
   }
 
   function updateUnsavedState() {
@@ -128,6 +141,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     input.addEventListener('change', updateUnsavedState);
   }
   openAfterSaveInput.addEventListener('change', updateUnsavedState);
+  redditCommentScoreFilterEnabledInput.addEventListener('change', () => {
+    updateRedditScoreFilterState();
+    updateUnsavedState();
+  });
+  redditCommentMinScoreInput.addEventListener('input', updateUnsavedState);
 
   chooseDirectoryButton.addEventListener('click', async () => {
     setDirectoryBusy(true);

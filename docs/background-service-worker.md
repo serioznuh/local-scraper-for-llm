@@ -16,10 +16,11 @@ their own save directory from the options page.
 ### Toolbar Icon Click
 
 `chrome.action.onClicked` is the scrape trigger. The worker loads settings,
-opens Settings if no save directory is configured, injects `content.js`, sends
-the result to the native host, and reports progress through badge text and the
-action tooltip. Tooltip titles include a trailing spacer line because Chrome may
-append its own site-access context in the same tooltip.
+opens Settings if no save directory is configured, injects the small
+content-script settings payload, injects `content.js`, sends the result to the
+native host, and reports progress through badge text and the action tooltip.
+Tooltip titles include a trailing spacer line because Chrome may append its own
+site-access context in the same tooltip.
 
 ### `getSettings`
 

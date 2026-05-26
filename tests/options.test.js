@@ -27,7 +27,13 @@ function createElement({ value = '', checked = false, hidden = false, textConten
 }
 
 async function loadOptions({
-  settings = { savePath: '/Users/me/Scrapes', clipboardMode: 'file', openAfterSave: true },
+  settings = {
+    savePath: '/Users/me/Scrapes',
+    clipboardMode: 'file',
+    openAfterSave: true,
+    redditCommentScoreFilterEnabled: false,
+    redditCommentMinScore: 2
+  },
   lastStatus = null,
   chooseDirectoryResponse = { success: true, directory: '/Users/me/Chosen' }
 } = {}) {
@@ -41,6 +47,8 @@ async function loadOptions({
     savePath: createElement(),
     chooseDirectoryBtn: createElement(),
     openAfterSave: createElement(),
+    redditCommentScoreFilterEnabled: createElement(),
+    redditCommentMinScore: createElement(),
     saveSettingsBtn: createElement({ textContent: 'Save Settings' }),
     toast: createElement({ hidden: true }),
     unsavedChangesToast: createElement({ hidden: true }),
@@ -226,6 +234,58 @@ test('changing output actions shows unsaved changes toast', async () => {
   elements.openAfterSave.listeners.change();
 
   assert.equal(elements.unsavedChangesToast.hidden, false);
+});
+
+test('options page renders Reddit score filter settings', async () => {
+  const { elements } = await loadOptions({
+    settings: {
+      savePath: '/Users/me/Scrapes',
+      clipboardMode: 'off',
+      openAfterSave: false,
+      redditCommentScoreFilterEnabled: true,
+      redditCommentMinScore: 4
+    }
+  });
+
+  assert.equal(elements.redditCommentScoreFilterEnabled.checked, true);
+  assert.equal(elements.redditCommentMinScore.value, '4');
+  assert.equal(elements.redditCommentMinScore.disabled, false);
+});
+
+test('Reddit score minimum input is disabled until filtering is enabled', async () => {
+  const { elements } = await loadOptions();
+
+  assert.equal(elements.redditCommentScoreFilterEnabled.checked, false);
+  assert.equal(elements.redditCommentMinScore.disabled, true);
+
+  elements.redditCommentScoreFilterEnabled.checked = true;
+  elements.redditCommentScoreFilterEnabled.listeners.change();
+
+  assert.equal(elements.redditCommentMinScore.disabled, false);
+  assert.equal(elements.unsavedChangesToast.hidden, false);
+});
+
+test('saving settings includes Reddit score filter settings', async () => {
+  const { elements, messages } = await loadOptions();
+
+  elements.redditCommentScoreFilterEnabled.checked = true;
+  elements.redditCommentScoreFilterEnabled.listeners.change();
+  elements.redditCommentMinScore.value = '3';
+  elements.redditCommentMinScore.listeners.input();
+
+  await elements.settingsForm.listeners.submit({ preventDefault() {} });
+
+  assert.deepEqual(plain(messages.at(-1)), {
+    action: 'saveSettings',
+    settings: {
+      version: 2,
+      savePath: '/Users/me/Scrapes',
+      clipboardMode: 'file',
+      openAfterSave: true,
+      redditCommentScoreFilterEnabled: true,
+      redditCommentMinScore: 3
+    }
+  });
 });
 
 test('folder picker marks selected directory as unsaved', async () => {

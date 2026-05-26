@@ -243,7 +243,22 @@ function redditVisibleTextOnlyDocument() {
 }
 
 function redditStructuredThreadDocument(options = {}) {
-  const { commentStartAfterComments = false } = options;
+  const {
+    commentStartAfterComments = false,
+    rootScore = '2',
+    childScore = '1',
+    grandchildScore = '3',
+    greatGrandchildScore,
+    childSiblingScore,
+    grandchildSiblingScore,
+    parallelScore = '0',
+    parallelActionRowScore = null,
+    greatGreatGrandchildScore
+  } = options;
+  const withScore = (attributes, score) => {
+    if (score === null || score === undefined) return attributes;
+    return Object.assign({}, attributes, { score });
+  };
   const commentStart = el('textarea', {}, []);
   const children = [
     el('h1', {}, ['So I stumbled across this prompt hack']),
@@ -251,39 +266,90 @@ function redditStructuredThreadDocument(options = {}) {
   ];
   if (!commentStartAfterComments) children.push(commentStart);
   children.push(
-    el('shreddit-comment', { author: 'ClaudeAI-mod-bot', thingid: 't1_bot', created: '5mo ago' }, [
+    el('shreddit-comment', withScore({ author: 'ClaudeAI-mod-bot', thingid: 't1_bot', created: '5mo ago' }, '100'), [
       el('div', { id: 't1_bot-comment-rtjson-content', slot: 'comment' }, [
         el('p', {}, ['TL;DR generated automatically after 100 comments.'])
       ])
     ]),
-    el('shreddit-comment', { author: 'enthusiast_bob', thingid: 't1_root', created: '5mo ago' }, [
+    el('shreddit-comment', withScore({ author: 'enthusiast_bob', thingid: 't1_root', created: '5mo ago' }, rootScore), [
       el('div', { id: 't1_root-comment-rtjson-content', slot: 'comment' }, [
         el('p', {}, ['Root comment body only.'])
       ]),
-      el('shreddit-comment', {
+      el('shreddit-comment', withScore({
         author: 'soopypoopy132',
         thingid: 't1_child',
         parentid: 't1_root',
         created: '5mo ago'
-      }, [
+      }, childScore), [
         el('div', { id: 't1_child-comment-rtjson-content', slot: 'comment' }, [
           el('p', {}, ['Child reply body only.'])
         ]),
-        el('shreddit-comment', {
+        el('shreddit-comment', withScore({
           author: 'enthusiast_bob',
           thingid: 't1_grandchild',
           parentid: 't1_child',
           created: '5mo ago'
-        }, [
+        }, grandchildScore), [
           el('div', { id: 't1_grandchild-comment-rtjson-content', slot: 'comment' }, [
             el('p', {}, ['Grandchild reply body only.'])
+          ]),
+          ...(greatGrandchildScore === undefined ? [] : [
+            el('shreddit-comment', withScore({
+              author: 'deep_reply_user',
+              thingid: 't1_great_grandchild',
+              parentid: 't1_grandchild',
+              created: '5mo ago'
+            }, greatGrandchildScore), [
+              el('div', { id: 't1_great_grandchild-comment-rtjson-content', slot: 'comment' }, [
+                el('p', {}, ['Great grandchild reply body only.'])
+              ]),
+              ...(greatGreatGrandchildScore === undefined ? [] : [
+                el('shreddit-comment', withScore({
+                  author: 'deeper_reply_user',
+                  thingid: 't1_great_great_grandchild',
+                  parentid: 't1_great_grandchild',
+                  created: '5mo ago'
+                }, greatGreatGrandchildScore), [
+                  el('div', { id: 't1_great_great_grandchild-comment-rtjson-content', slot: 'comment' }, [
+                    el('p', {}, ['Great great grandchild reply body only.'])
+                  ])
+                ])
+              ])
+            ])
+          ])
+        ]),
+        ...(grandchildSiblingScore === undefined ? [] : [
+          el('shreddit-comment', withScore({
+            author: 'second_descendant',
+            thingid: 't1_grandchild_sibling',
+            parentid: 't1_child',
+            created: '5mo ago'
+          }, grandchildSiblingScore), [
+            el('div', { id: 't1_grandchild_sibling-comment-rtjson-content', slot: 'comment' }, [
+              el('p', {}, ['Second grandchild reply body only.'])
+            ])
+          ])
+        ])
+      ]),
+      ...(childSiblingScore === undefined ? [] : [
+        el('shreddit-comment', withScore({
+          author: 'sibling_reply_user',
+          thingid: 't1_child_sibling',
+          parentid: 't1_root',
+          created: '5mo ago'
+        }, childSiblingScore), [
+          el('div', { id: 't1_child_sibling-comment-rtjson-content', slot: 'comment' }, [
+            el('p', {}, ['Sibling reply body only.'])
           ])
         ])
       ])
     ]),
-    el('shreddit-comment', { author: 'parallel_user', thingid: 't1_parallel', created: '4mo ago' }, [
+    el('shreddit-comment', withScore({ author: 'parallel_user', thingid: 't1_parallel', created: '4mo ago' }, parallelScore), [
       el('div', { id: 't1_parallel-comment-rtjson-content', slot: 'comment' }, [
         el('p', {}, ['Parallel root body only.'])
+      ]),
+      ...(parallelActionRowScore === null ? [] : [
+        el('shreddit-comment-action-row', { score: parallelActionRowScore }, [])
       ])
     ])
   );
@@ -294,8 +360,13 @@ function redditStructuredThreadDocument(options = {}) {
   ]));
 }
 
-async function runContentScript(document) {
+async function runContentScript(document, scraperSettings = {}) {
   const source = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
+  const location = {
+    hostname: 'www.reddit.com',
+    pathname: '/r/ClaudeAI/comments/example/thread/',
+    href: 'https://www.reddit.com/r/ClaudeAI/comments/example/thread/'
+  };
   const context = {
     document,
     MutationObserver: class {
@@ -305,11 +376,8 @@ async function runContentScript(document) {
     URL,
     window: {
       document,
-      location: {
-        hostname: 'www.reddit.com',
-        pathname: '/r/ClaudeAI/comments/example/thread/',
-        href: 'https://www.reddit.com/r/ClaudeAI/comments/example/thread/'
-      },
+      location,
+      __scraperSettings: scraperSettings,
       scrollX: 0,
       scrollY: 0,
       innerHeight: 800,
@@ -329,6 +397,7 @@ async function runContentScript(document) {
       }
     }
   };
+  context.location = location;
   context.globalThis = context;
   return await vm.runInNewContext(source, context, { filename: 'content.js' });
 }
@@ -365,16 +434,16 @@ test('Reddit structured extraction preserves nested reply threads', async () => 
 
   assert.equal(result.error, undefined);
   assert.match(result.content, /## Comments/);
-  assert.match(result.content, /### enthusiast_bob · 5mo ago\n\nRoot comment body only\./);
-  assert.match(result.content, /#### Reply to enthusiast_bob: soopypoopy132 · 5mo ago\n\nChild reply body only\./);
-  assert.match(result.content, /##### Reply to soopypoopy132: enthusiast_bob · 5mo ago\n\nGrandchild reply body only\./);
-  assert.match(result.content, /### parallel_user · 4mo ago\n\nParallel root body only\./);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 2\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 3\n\nGrandchild reply body only\./);
+  assert.match(result.content, /### parallel_user · 4mo ago · score 0\n\nParallel root body only\./);
   assert.doesNotMatch(result.content, /ClaudeAI-mod-bot/);
   assert.doesNotMatch(result.content, /TL;DR generated automatically/);
 
   const rootSection = result.content.slice(
-    result.content.indexOf('### enthusiast_bob · 5mo ago'),
-    result.content.indexOf('#### Reply to enthusiast_bob: soopypoopy132')
+    result.content.indexOf('### enthusiast_bob · 5mo ago · score 2'),
+    result.content.indexOf('#### soopypoopy132 → enthusiast_bob')
   );
   assert.doesNotMatch(rootSection, /Child reply body only/);
   assert.doesNotMatch(rootSection, /Grandchild reply body only/);
@@ -384,7 +453,181 @@ test('Reddit structured extraction survives comment-start markers after comments
   const result = await runContentScript(redditStructuredThreadDocument({ commentStartAfterComments: true }));
 
   assert.equal(result.error, undefined);
-  assert.match(result.content, /### enthusiast_bob · 5mo ago\n\nRoot comment body only\./);
-  assert.match(result.content, /#### Reply to enthusiast_bob: soopypoopy132 · 5mo ago\n\nChild reply body only\./);
-  assert.match(result.content, /### parallel_user · 4mo ago\n\nParallel root body only\./);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 2\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1\n\nChild reply body only\./);
+  assert.match(result.content, /### parallel_user · 4mo ago · score 0\n\nParallel root body only\./);
+});
+
+test('Reddit structured extraction uses compact reply headings and marks capped depth', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    greatGrandchildScore: '4',
+    greatGreatGrandchildScore: '5'
+  }));
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 3\n\nGrandchild reply body only\./);
+  assert.match(result.content, /###### deep_reply_user → enthusiast_bob · 5mo ago · score 4\n\nGreat grandchild reply body only\./);
+  assert.match(result.content, /###### deeper_reply_user → deep_reply_user · 5mo ago · score 5 · d4\n\nGreat great grandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Reply to /);
+  assert.doesNotMatch(result.content, /· d3/);
+});
+
+test('Reddit structured extraction filters comments below the configured score', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument(), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 2
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 2\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1 · context only\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 3\n\nGrandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+});
+
+test('Reddit score filter preserves low-score ancestors as context for retained descendants', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    rootScore: '1',
+    childScore: '1',
+    grandchildScore: '4',
+    parallelScore: '0'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 4
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 1 · context only\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1 · context only\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 4\n\nGrandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+});
+
+test('Reddit score filter drops low-score siblings beside retained context paths', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    rootScore: '1',
+    childScore: '1',
+    childSiblingScore: '1',
+    grandchildScore: '3',
+    parallelScore: '1'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 3
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /Root comment body only\./);
+  assert.match(result.content, /Child reply body only\./);
+  assert.match(result.content, /Grandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Sibling reply body only\./);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+});
+
+test('Reddit score filter drops low-score descendants unless they lead to retained replies', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    rootScore: '3',
+    childScore: '3',
+    grandchildScore: '1',
+    greatGrandchildScore: '4',
+    parallelScore: '0'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 3
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 3\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 3\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 1 · context only\n\nGrandchild reply body only\./);
+  assert.match(result.content, /###### deep_reply_user → enthusiast_bob · 5mo ago · score 4\n\nGreat grandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+
+  const withoutRetainedDescendant = await runContentScript(redditStructuredThreadDocument({
+    rootScore: '3',
+    childScore: '3',
+    grandchildScore: '1',
+    parallelScore: '0'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 3
+  });
+
+  assert.equal(withoutRetainedDescendant.error, undefined);
+  assert.doesNotMatch(withoutRetainedDescendant.content, /Grandchild reply body only\./);
+});
+
+test('Reddit score filter shares context chain for multiple retained descendants', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    rootScore: '1',
+    childScore: '1',
+    grandchildScore: '3',
+    grandchildSiblingScore: '4',
+    parallelScore: '0'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 3
+  });
+
+  assert.equal(result.error, undefined);
+  assert.equal(result.content.indexOf('Root comment body only.'), result.content.lastIndexOf('Root comment body only.'));
+  assert.equal(result.content.indexOf('Child reply body only.'), result.content.lastIndexOf('Child reply body only.'));
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · score 1 · context only\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1 · context only\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 3\n\nGrandchild reply body only\./);
+  assert.match(result.content, /##### second_descendant → soopypoopy132 · 5mo ago · score 4\n\nSecond grandchild reply body only\./);
+});
+
+test('Reddit score filter retains unknown-score ancestors only as context', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    rootScore: null,
+    childScore: '1',
+    grandchildScore: '3',
+    parallelScore: null
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 3
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### enthusiast_bob · 5mo ago · context only\n\nRoot comment body only\./);
+  assert.match(result.content, /#### soopypoopy132 → enthusiast_bob · 5mo ago · score 1 · context only\n\nChild reply body only\./);
+  assert.match(result.content, /##### enthusiast_bob → soopypoopy132 · 5mo ago · score 3\n\nGrandchild reply body only\./);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+});
+
+test('Reddit score filter drops comments with unavailable scores', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    parallelScore: null
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 0
+  });
+
+  assert.equal(result.error, undefined);
+  assert.doesNotMatch(result.content, /Parallel root body only\./);
+});
+
+test('Reddit structured extraction falls back to action row scores', async () => {
+  const result = await runContentScript(redditStructuredThreadDocument({
+    parallelScore: null,
+    parallelActionRowScore: '5'
+  }), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 5
+  });
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### parallel_user · 4mo ago · score 5\n\nParallel root body only\./);
+});
+
+test('Reddit score filter skips comments from unscored fallback text', async () => {
+  const result = await runContentScript(redditVisibleTextOnlyDocument(), {
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 2
+  });
+
+  assert.equal(result.error, undefined);
+  assert.doesNotMatch(result.content, /## Comments/);
+  assert.doesNotMatch(result.content, /Try the local review plugin against your git diff/);
 });

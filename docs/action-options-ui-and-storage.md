@@ -30,6 +30,9 @@ The options page stores:
 - **Clipboard after scrape**: off by default; can copy Markdown text or the saved
   `.md` file through the macOS native host.
 - **Open saved Markdown file**: off by default; macOS-only native-host action.
+- **Reddit comment score filter**: off by default; can keep structured Reddit
+  comments whose exposed score meets the configured minimum, plus the ancestor
+  context needed to understand those kept replies.
 
 The page has no idle "ready" text. Save-directory errors appear in a persistent
 top banner because the user can fix them there. Stored scrape successes,
@@ -49,10 +52,12 @@ Settings live in `chrome.storage.local` under the `settings` key:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "savePath": "",
   "clipboardMode": "off",
-  "openAfterSave": false
+  "openAfterSave": false,
+  "redditCommentScoreFilterEnabled": false,
+  "redditCommentMinScore": 2
 }
 ```
 
@@ -65,13 +70,14 @@ When the user clicks the toolbar icon, the background service worker:
 
 1. Loads normalized settings.
 2. Opens Settings and shows an error badge if no save directory is configured.
-3. Injects `content.js` into the active tab.
-4. Sends the scrape result to the native host for saving.
-5. Lets the native host copy Markdown text if `clipboardMode` is `markdown`.
-6. Lets the native host copy the saved file if `clipboardMode` is `file`.
-7. Opens Settings if the native host reports that the save directory cannot be
+3. Injects the small content-script settings payload into the active tab.
+4. Injects `content.js` into the active tab.
+5. Sends the scrape result to the native host for saving.
+6. Lets the native host copy Markdown text if `clipboardMode` is `markdown`.
+7. Lets the native host copy the saved file if `clipboardMode` is `file`.
+8. Opens Settings if the native host reports that the save directory cannot be
    created or written.
-8. Reports non-settings failures and optional copy/open failures through the
+9. Reports non-settings failures and optional copy/open failures through the
    toolbar badge and tooltip.
 
 ## Error Text

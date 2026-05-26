@@ -5,19 +5,23 @@ const settings = require('../settings.js');
 
 test('normalizes missing settings to conservative defaults', () => {
   assert.deepEqual(settings.normalizeSettings(), {
-    version: 1,
+    version: 2,
     savePath: '',
     clipboardMode: 'off',
-    openAfterSave: false
+    openAfterSave: false,
+    redditCommentScoreFilterEnabled: false,
+    redditCommentMinScore: 2
   });
 });
 
 test('migrates legacy savePath while keeping optional actions off', () => {
   assert.deepEqual(settings.normalizeSettings(null, '/Users/me/Scrapes'), {
-    version: 1,
+    version: 2,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'off',
-    openAfterSave: false
+    openAfterSave: false,
+    redditCommentScoreFilterEnabled: false,
+    redditCommentMinScore: 2
   });
 });
 
@@ -26,24 +30,65 @@ test('migrates legacy copy boolean to markdown clipboard mode', () => {
     savePath: '/Users/me/Scrapes',
     copyToClipboard: true
   }), {
-    version: 1,
+    version: 2,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'markdown',
-    openAfterSave: false
+    openAfterSave: false,
+    redditCommentScoreFilterEnabled: false,
+    redditCommentMinScore: 2
   });
 });
 
-test('normalizes clipboard mode, booleans, and savePath', () => {
+test('normalizes clipboard mode, booleans, savePath, and Reddit score filter', () => {
   assert.deepEqual(settings.normalizeSettings({
     version: 99,
     savePath: '  /Users/me/Scrapes  ',
     clipboardMode: 'file',
-    openAfterSave: 1
+    openAfterSave: 1,
+    redditCommentScoreFilterEnabled: 1,
+    redditCommentMinScore: ' 4 '
   }), {
-    version: 1,
+    version: 2,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'file',
-    openAfterSave: true
+    openAfterSave: true,
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 4
+  });
+});
+
+test('invalid Reddit score minimum falls back to conservative default', () => {
+  assert.equal(settings.normalizeSettings({
+    savePath: '/Users/me/Scrapes',
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 'not-a-number'
+  }).redditCommentMinScore, 2);
+  assert.equal(settings.normalizeSettings({
+    savePath: '/Users/me/Scrapes',
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: null
+  }).redditCommentMinScore, 2);
+  assert.equal(settings.normalizeSettings({
+    savePath: '/Users/me/Scrapes',
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: true
+  }).redditCommentMinScore, 2);
+});
+
+test('mergeSettings preserves Reddit score filter settings', () => {
+  assert.deepEqual(settings.mergeSettings({
+    savePath: '/Users/me/Scrapes',
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 5
+  }, {
+    clipboardMode: 'markdown'
+  }), {
+    version: 2,
+    savePath: '/Users/me/Scrapes',
+    clipboardMode: 'markdown',
+    openAfterSave: false,
+    redditCommentScoreFilterEnabled: true,
+    redditCommentMinScore: 5
   });
 });
 
