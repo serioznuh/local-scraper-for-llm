@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openAfterSaveInput = document.getElementById('openAfterSave');
   const redditCommentScoreFilterEnabledInput = document.getElementById('redditCommentScoreFilterEnabled');
   const redditCommentMinScoreInput = document.getElementById('redditCommentMinScore');
+  const redditTrivialCommentFilterEnabledInput = document.getElementById('redditTrivialCommentFilterEnabled');
   const saveButton = document.getElementById('saveSettingsBtn');
   const toast = document.getElementById('toast');
   const unsavedChangesToast = document.getElementById('unsavedChangesToast');
@@ -76,7 +77,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       clipboardMode: selectedClipboardMode,
       openAfterSave: openAfterSaveInput.checked,
       redditCommentScoreFilterEnabled: redditCommentScoreFilterEnabledInput.checked,
-      redditCommentMinScore: redditCommentMinScoreInput.value
+      redditCommentMinScore: redditCommentMinScoreInput.value,
+      redditTrivialCommentFilterEnabled: redditTrivialCommentFilterEnabledInput.checked
     });
   }
 
@@ -88,6 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     openAfterSaveInput.checked = settings.openAfterSave;
     redditCommentScoreFilterEnabledInput.checked = settings.redditCommentScoreFilterEnabled;
     redditCommentMinScoreInput.value = String(settings.redditCommentMinScore);
+    redditTrivialCommentFilterEnabledInput.checked = settings.redditTrivialCommentFilterEnabled;
     updateRedditScoreFilterState();
   }
 
@@ -96,7 +99,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       a.clipboardMode === b.clipboardMode &&
       a.openAfterSave === b.openAfterSave &&
       a.redditCommentScoreFilterEnabled === b.redditCommentScoreFilterEnabled &&
-      a.redditCommentMinScore === b.redditCommentMinScore;
+      a.redditCommentMinScore === b.redditCommentMinScore &&
+      a.redditTrivialCommentFilterEnabled === b.redditTrivialCommentFilterEnabled;
   }
 
   function updateUnsavedState() {
@@ -146,6 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateUnsavedState();
   });
   redditCommentMinScoreInput.addEventListener('input', updateUnsavedState);
+  redditTrivialCommentFilterEnabledInput.addEventListener('change', updateUnsavedState);
 
   chooseDirectoryButton.addEventListener('click', async () => {
     setDirectoryBusy(true);

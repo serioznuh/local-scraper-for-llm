@@ -88,6 +88,7 @@ Generated filenames use the current date and a page-title slug, for example:
 TITLE: Article Title
 AUTHOR: Author Name
 PUBLISHED: 2026-03-09
+SCRAPED_AT: 2026-05-26 12:34 UTC
 SOURCE: https://example.com/article
 --- END METADATA ---
 
@@ -97,7 +98,8 @@ Content in clean Markdown...
 ```
 
 `PUBLISHED` appears only when the page exposes a usable timestamp. `AUTHOR`
-falls back to `Unknown Author` when no author can be found.
+falls back to `Unknown Author` when no author can be found. Reddit exports also
+add subreddit, post score, and exported-comment count metadata when available.
 
 ## Supported Content
 
@@ -105,8 +107,10 @@ Works well on articles, blog posts, job descriptions, event pages, recipes,
 Reddit posts, documentation pages, and LinkedIn job pages.
 
 Reddit exports keep self-post text, post date when available, comment author,
-comment date when available, deleted-author comments with visible bodies, and
-nested reply structure.
+comment date when useful, compact comment scores, OP flags, deleted-author
+comments with visible bodies, removed/deleted context anchors when needed, and
+nested reply structure. A Settings toggle can drop trivial low-score Reddit leaf
+comments; it is off by default.
 
 ## Project Layout
 

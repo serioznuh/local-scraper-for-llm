@@ -48,7 +48,7 @@ manual testing until an agent has also run one real Chrome extension smoke test:
      as context for another retained reply
    - retained replies use compact `author → parent` headings, with `dN` only for
      replies deeper than the Markdown heading cap
-   - no `score 0` headings appear
+   - no `· 0` headings appear
 7. Restore the user's previous settings before handing off for user testing.
 
 ## Action, Options, Background, And Native Host Changes

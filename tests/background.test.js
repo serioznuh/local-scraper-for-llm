@@ -184,9 +184,10 @@ test('icon click scrapes the tab and saves through the native host', async () =>
   }), {
     target: { tabId: 34 },
     args: [{
-      version: 2,
+      version: 3,
       redditCommentScoreFilterEnabled: false,
-      redditCommentMinScore: 2
+      redditCommentMinScore: 2,
+      redditTrivialCommentFilterEnabled: false
     }]
   });
   assert.deepEqual(plain(mock.calls.scripts[1]), {

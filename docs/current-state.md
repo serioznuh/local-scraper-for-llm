@@ -42,36 +42,49 @@ Generated Markdown begins with a metadata block:
 TITLE: Article Title
 AUTHOR: Author Name
 PUBLISHED: 2026-03-09
+SCRAPED_AT: 2026-05-26 12:34 UTC
 SOURCE: https://example.com/article
 --- END METADATA ---
 ```
 
 `PUBLISHED` is omitted when the page does not expose a timestamp. `AUTHOR` falls
-back to `Unknown Author`.
+back to `Unknown Author`. `SCRAPED_AT` records the scrape time in UTC using
+`YYYY-MM-DD HH:mm UTC`.
 
 ## Reddit State
 
+Reddit metadata also includes `SUBREDDIT`, `POST_SCORE`, and
+`EXPORTED_COMMENT_COUNT` when available. When the Reddit score filter is enabled
+and Reddit exposes its displayed total, metadata also includes
+`REDDIT_COMMENT_COUNT`.
+
 Reddit extraction keeps self-post bodies, post dates when available, comment
-authors, comment dates when available, comment scores when Reddit exposes them
-on structured comment elements, deleted-author comments with visible bodies, and
-nested reply structure. Absolute Reddit timestamps are formatted as date-only
-`YYYY-MM-DD` values. Structured replies use compact headings in the form
-`author → parent`; once Markdown heading depth is capped, deeper replies add a
-compact depth marker such as `d4`.
+authors, useful comment dates, compact comment scores, OP flags,
+deleted-author comments with visible bodies, marker-only removed/deleted
+comments needed as thread context, and nested reply structure. Absolute Reddit
+timestamps are formatted as date-only `YYYY-MM-DD` values; comment dates matching
+the post `PUBLISHED` date are omitted from comment headings. Structured replies
+use compact headings in the form `author → parent`; once Markdown heading depth
+is capped, deeper replies add a compact depth marker such as `d4`.
+Filename-style auto-links such as `current-state.md` are emitted as plain text,
+while relative Reddit links are normalized to absolute Reddit URLs.
 
 The scraper bounds Reddit lead extraction to the current post container when
 Reddit exposes one, so promoted media outside the post is not exported as post
 content. It waits for hydrated comments and prompts comment loading by scrolling
 near the comment section, then walks from the last mounted comment to trigger
-lazy-loaded tail comments before export. It avoids exporting Reddit
-avatar/profile images and filters common AutoModerator/bot boilerplate. When
-Reddit comments are visible as rendered page text but not available through
+lazy-loaded tail comments before export. It also expands mounted Reddit "more
+replies" controls so hidden descendants can be included. It avoids exporting
+Reddit avatar/profile images and filters common AutoModerator/bot boilerplate.
+When Reddit comments are visible as rendered page text but not available through
 structured comment elements, a flat visible-text fallback keeps loaded comments
 and stops before sidebar chrome. An optional Reddit-only score filter can keep
 comments at or above a configured minimum score. When that filter is enabled,
 below-threshold or unknown-score ancestors are retained only when they provide
 context for a kept reply and are labeled `context only`; unrelated low-score
 branches and unscored fallback comments are not used.
+An optional trivial leaf filter can drop low-score, very short Reddit comments
+with no children. That filter is off by default.
 
 ## LinkedIn Job State
 
@@ -83,9 +96,10 @@ LinkedIn chrome when possible.
 
 Settings live as a versioned `settings` object in `chrome.storage.local`.
 Supported keys are `savePath`, `clipboardMode`, `openAfterSave`,
-`redditCommentScoreFilterEnabled`, and `redditCommentMinScore`. The committed
-`DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save paths are not
-stored in the repository.
+`redditCommentScoreFilterEnabled`, `redditCommentMinScore`, and
+`redditTrivialCommentFilterEnabled`. The committed `DEFAULT_SAVE_DIR` in
+`background.js` must stay empty so local save paths are not stored in the
+repository.
 
 The extension has no popup. The toolbar icon is the scrape trigger. The options
 page owns durable settings, folder selection, and save-directory error recovery.

@@ -80,7 +80,8 @@
             : {};
         return {
             redditCommentScoreFilterEnabled: normalizeInjectedBoolean(source.redditCommentScoreFilterEnabled),
-            redditCommentMinScore: normalizeInjectedInteger(source.redditCommentMinScore, 2)
+            redditCommentMinScore: normalizeInjectedInteger(source.redditCommentMinScore, 2),
+            redditTrivialCommentFilterEnabled: normalizeInjectedBoolean(source.redditTrivialCommentFilterEnabled)
         };
     }
 
@@ -180,6 +181,192 @@
         return values.map(formatDateOnlyTimestamp).find(Boolean) || '';
     }
 
+    function formatScrapedAtTimestamp(date) {
+        const parsed = date instanceof Date ? date : new Date(date);
+        const value = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+        const pad = part => String(part).padStart(2, '0');
+        return [
+            value.getUTCFullYear(),
+            pad(value.getUTCMonth() + 1),
+            pad(value.getUTCDate())
+        ].join('-') + ` ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())} UTC`;
+    }
+
+    function isDateOnlyTimestamp(value) {
+        return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    }
+
+    function parseRedditInteger(value) {
+        if (typeof value !== 'string' && typeof value !== 'number') return null;
+        const normalized = String(value).trim().replace(/,/g, '');
+        if (!/^[+-]?\d+$/.test(normalized)) return null;
+        const parsed = Number.parseInt(normalized, 10);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function formatRedditScore(score) {
+        if (typeof score !== 'number') return '';
+        return score > 0 ? `+${score}` : `${score}`;
+    }
+
+    function getRedditSubreddit() {
+        if (!isRedditPage()) return '';
+        const match = (window.location.pathname || '').match(/\/r\/([^/?#]+)/i);
+        return match ? `r/${decodeURIComponent(match[1])}` : '';
+    }
+
+    function getRedditIntegerAttribute(el, names) {
+        if (!el) return null;
+        for (const name of names) {
+            const parsed = parseRedditInteger(el.getAttribute(name));
+            if (parsed !== null) return parsed;
+        }
+        return null;
+    }
+
+    function getRedditCurrentPost() {
+        const titleEl = document.querySelector('h1');
+        return getRedditCurrentPostContainer(titleEl) || null;
+    }
+
+    function getRedditPostScore() {
+        const post = getRedditCurrentPost();
+        const attrScore = getRedditIntegerAttribute(post, [
+            'score',
+            'post-score',
+            'data-score',
+            'data-post-score',
+            'upvote-count',
+            'data-upvote-count'
+        ]);
+        if (attrScore !== null) return attrScore;
+
+        const actionRow = post
+            ? queryAllIncludingShadow(post, '[score], [data-score], shreddit-post-action-row')
+                .find(el => !closestCrossShadow(el, getRedditCommentContainerSelector()) &&
+                    getRedditIntegerAttribute(el, ['score', 'data-score']) !== null)
+            : null;
+        return getRedditIntegerAttribute(actionRow, ['score', 'data-score']);
+    }
+
+    function getRedditDisplayedCommentCount() {
+        const post = getRedditCurrentPost();
+        const attrCount = getRedditIntegerAttribute(post, [
+            'comment-count',
+            'comments-count',
+            'commentcount',
+            'data-comment-count',
+            'data-comments-count'
+        ]);
+        if (attrCount !== null) return attrCount;
+
+        const countEl = queryAllIncludingShadow(post || document, '[comment-count], [data-comment-count], [aria-label*="comments"]')
+            .find(el => {
+                return getRedditIntegerAttribute(el, ['comment-count', 'data-comment-count']) !== null ||
+                    /\b\d[\d,]*\s+comments?\b/i.test(el.getAttribute('aria-label') || el.innerText || '');
+            });
+        const nestedAttrCount = getRedditIntegerAttribute(countEl, ['comment-count', 'data-comment-count']);
+        if (nestedAttrCount !== null) return nestedAttrCount;
+
+        const textMatch = cleanText(countEl?.getAttribute('aria-label') || countEl?.innerText || '')
+            .match(/\b(\d[\d,]*)\s+comments?\b/i);
+        return textMatch ? parseRedditInteger(textMatch[1]) : null;
+    }
+
+    const INVALID_AUTOLINK_TLDS = new Set([
+        'bash',
+        'c',
+        'cfg',
+        'cpp',
+        'cs',
+        'css',
+        'csv',
+        'go',
+        'h',
+        'hpp',
+        'html',
+        'ini',
+        'java',
+        'js',
+        'json',
+        'jsx',
+        'kt',
+        'md',
+        'php',
+        'py',
+        'rb',
+        'rs',
+        'sh',
+        'sql',
+        'swift',
+        'toml',
+        'ts',
+        'tsx',
+        'txt',
+        'xml',
+        'yaml',
+        'yml',
+        'zsh'
+    ]);
+
+    function parseHttpUrl(value) {
+        try {
+            const url = new URL(value, window.location.href);
+            return /^https?:$/i.test(url.protocol) ? url : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function getPublicTld(hostname) {
+        const normalized = cleanText(hostname || '').toLowerCase().replace(/\.$/, '');
+        if (!normalized || normalized === 'localhost' || !normalized.includes('.')) return '';
+        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) return '';
+        const labels = normalized.split('.').filter(Boolean);
+        return labels.length > 1 ? labels[labels.length - 1] : '';
+    }
+
+    function hasValidPublicTld(hostname) {
+        const tld = getPublicTld(hostname);
+        return /^[a-z]{2,63}$/i.test(tld) && !INVALID_AUTOLINK_TLDS.has(tld);
+    }
+
+    function normalizeUrlComparable(value) {
+        return cleanText(value)
+            .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+            .replace(/^www\./i, '')
+            .replace(/\/$/, '')
+            .toLowerCase();
+    }
+
+    function isUrlLikeLabel(label) {
+        return /^[a-z][a-z0-9+.-]*:\/\//i.test(label) ||
+            /^[^\s/]+\.[a-z0-9-]{2,}(?:[/?#:]|$)/i.test(label);
+    }
+
+    function shouldSuppressPlainTextAutoLink(href, label) {
+        const url = parseHttpUrl(href);
+        if (!url) return false;
+
+        const text = cleanText(label);
+        if (!text || /\s/.test(text) || !isUrlLikeLabel(text)) return false;
+
+        const urlText = `${url.hostname}${url.pathname}${url.search}${url.hash}`;
+        const textMatchesUrl = normalizeUrlComparable(text) === normalizeUrlComparable(urlText);
+        if (!textMatchesUrl) return false;
+
+        const hasExplicitScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+        return !hasExplicitScheme || !hasValidPublicTld(url.hostname);
+    }
+
+    function normalizeMarkdownHref(href) {
+        try {
+            return new URL(href, window.location.href).href;
+        } catch (e) {
+            return href;
+        }
+    }
+
     function getPublishedTimestamp() {
         if (isRedditPage()) {
             const redditTimestamp = getRedditPostTimestamp();
@@ -265,6 +452,34 @@
         author = author.split(/[·•]/)[0].trim();
         author = author.replace(/\s+\b(OP|MOD)\b.*$/i, '').trim();
         return author;
+    }
+
+    function getRedditPostAuthor() {
+        if (!isRedditPage()) return '';
+
+        const titleEl = document.querySelector('h1');
+        const mainEl = queryFirstIncludingShadow(document, 'main') || document.body || document;
+        const currentPost = getRedditCurrentPostContainer(titleEl, mainEl);
+        const post = currentPost || queryAllIncludingShadow(
+            document,
+            'shreddit-post[author], [data-testid="post-container"], article'
+        ).find(el => !titleEl || el.contains(titleEl));
+        if (!post) return '';
+
+        const attrAuthor = cleanRedditAuthor(
+            post.getAttribute('author') ||
+            post.getAttribute('data-author') ||
+            post.dataset?.author ||
+            ''
+        );
+        if (attrAuthor) return attrAuthor;
+
+        const authorEl = queryAllIncludingShadow(
+            post,
+            'a[href*="/user/"], a[href*="/u/"], [data-testid*="post_author"], [slot*="author"]'
+        ).find(el => cleanRedditAuthor(el.textContent || '').length > 0);
+
+        return cleanRedditAuthor(authorEl ? authorEl.textContent : '');
     }
 
     function getRedditCommentId(container) {
@@ -446,6 +661,69 @@
         }
     }
 
+    function getRedditMoreReplyControls() {
+        const commentContainerSelector = getRedditCommentContainerSelector();
+        const moreReplyPattern = /^(?:view\s+)?(?:\d+\s+)?more\s+repl(?:y|ies)$/i;
+        const seen = new Set();
+
+        return queryAllIncludingShadow(document, 'button, [role="button"]')
+            .filter(el => {
+                if (!closestCrossShadow(el, commentContainerSelector)) return false;
+                const text = cleanText(
+                    el.innerText ||
+                    el.textContent ||
+                    el.getAttribute('aria-label') ||
+                    ''
+                );
+                if (!moreReplyPattern.test(text)) return false;
+                if (!isVisibleElement(el)) return false;
+                if (typeof el.getBoundingClientRect === 'function') {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width === 0 && rect.height === 0) return false;
+                }
+                if (seen.has(el)) return false;
+                seen.add(el);
+                return typeof el.click === 'function';
+            });
+    }
+
+    async function expandRedditMoreReplies() {
+        if (!isRedditPage() || !hasHydratedRedditComments(document)) return;
+
+        let clicksRemaining = 40;
+        let previousSignature = getRedditCommentLoadSignature();
+        const clickedControls = new WeakSet();
+
+        for (let pass = 0; pass < 6 && clicksRemaining > 0; pass++) {
+            const controls = getRedditMoreReplyControls()
+                .filter(control => !clickedControls.has(control))
+                .slice(0, Math.min(8, clicksRemaining));
+            if (controls.length === 0) break;
+
+            for (const control of controls) {
+                try {
+                    clickedControls.add(control);
+                    if (typeof control.scrollIntoView === 'function') {
+                        control.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    }
+                    control.click();
+                    clicksRemaining--;
+                } catch (e) {}
+            }
+
+            await waitForCondition(
+                () => getRedditCommentLoadSignature() !== previousSignature,
+                2500,
+                200
+            );
+            const nextSignature = getRedditCommentLoadSignature();
+            const unclickedControls = getRedditMoreReplyControls()
+                .filter(control => !clickedControls.has(control));
+            if (nextSignature === previousSignature && unclickedControls.length === 0) break;
+            previousSignature = nextSignature;
+        }
+    }
+
     async function waitForRedditHydration() {
         if (!isRedditPage()) return;
 
@@ -479,6 +757,8 @@
             promptRedditCommentLoading();
             await waitForCondition(hasCommentBodies, 3500, 250);
         }
+        await promptRedditLazyTailCommentLoading();
+        await expandRedditMoreReplies();
         await promptRedditLazyTailCommentLoading();
 
         return () => {
@@ -755,7 +1035,8 @@
             case 'a':
                 const href = node.getAttribute('href');
                 if (!href || href.startsWith('#')) return childText;
-                return `[${childText.trim()}](${href})`;
+                if (shouldSuppressPlainTextAutoLink(href, childText)) return childText.trim();
+                return `[${childText.trim()}](${normalizeMarkdownHref(href)})`;
 
             case 'ul':
                 return '\n' + Array.from(node.children)
@@ -925,7 +1206,10 @@
         const commentContainers = getVisibleRedditCommentContainers(rootEl)
             .filter(el => !titleEl || !el.contains(titleEl));
         const scoreFilterEnabled = scraperSettings.redditCommentScoreFilterEnabled === true;
+        const trivialFilterEnabled = scraperSettings.redditTrivialCommentFilterEnabled === true;
         const minScore = scraperSettings.redditCommentMinScore;
+        const postTimestamp = getRedditPostTimestamp();
+        const postAuthor = getRedditPostAuthor();
 
         function queryWithinComment(container, selector) {
             return queryAllIncludingShadow(container, selector)
@@ -937,9 +1221,7 @@
         }
 
         function parseScore(value) {
-            if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) return null;
-            const score = Number.parseInt(value.trim(), 10);
-            return Number.isFinite(score) ? score : null;
+            return parseRedditInteger(value);
         }
 
         function extractCommentScore(container) {
@@ -949,6 +1231,60 @@
             const actionRow = queryWithinComment(container, 'shreddit-comment-action-row[score]')
                 .find(el => parseScore(el.getAttribute('score')) !== null);
             return actionRow ? parseScore(actionRow.getAttribute('score')) : null;
+        }
+
+        function hasOpMarkerText(text) {
+            return /(?:^|[\s·•])OP(?:$|[\s·•])/i.test(cleanText(text));
+        }
+
+        function isTruthyFlag(value) {
+            return /^(true|1|yes)$/i.test(cleanText(value || ''));
+        }
+
+        function hasOpAttribute(el) {
+            if (!el) return false;
+            if ([
+                'is-op',
+                'op',
+                'data-is-op',
+                'data-op',
+                'author-is-op',
+                'data-author-is-op'
+            ].some(name => isTruthyFlag(el.getAttribute(name)))) {
+                return true;
+            }
+
+            return [
+                'author-distinguished',
+                'data-author-distinguished',
+                'distinguished',
+                'data-distinguished'
+            ].some(name => {
+                const value = cleanText(el.getAttribute(name) || '');
+                return /^(op|true|1|yes)$/i.test(value);
+            });
+        }
+
+        function extractCommentOpFlag(container, rawAuthorText, bodyNodes = []) {
+            if (hasOpAttribute(container)) return true;
+            if (hasOpMarkerText(rawAuthorText)) return true;
+
+            return queryWithinComment(
+                container,
+                'span, [aria-label*="OP"], [aria-label*="Original Poster"], [data-testid*="op"], [slot*="author-flair"], [is-op], [data-is-op], [author-distinguished], [data-author-distinguished]'
+            ).some(el => !bodyNodes.some(bodyNode => bodyNode.contains(el)) &&
+                (hasOpAttribute(el) ||
+                hasOpMarkerText(el.textContent || el.getAttribute('aria-label') || '')));
+        }
+
+        function getDeletedCommentMarker(user, body) {
+            const normalizedBody = normalizeText(body).replace(/[.!]+$/, '');
+            if (/^\[removed]$/i.test(body)) return '[removed-by-mod]';
+            if (/^(?:comment\s+)?removed\s+by\s+moderator$/i.test(normalizedBody)) return '[removed-by-mod]';
+            if (/^\[deleted]$/i.test(body)) return '[deleted-by-user]';
+            if (/^(?:comment\s+)?deleted\s+by\s+user$/i.test(normalizedBody)) return '[deleted-by-user]';
+            if (!body && /^\[deleted]$/i.test(user)) return '[deleted-by-user]';
+            return '';
         }
 
         function extractCommentTimestamp(container) {
@@ -999,14 +1335,14 @@
                 'a[href*="/user/"], a[href*="/u/"], [data-testid="comment_author_link"], [slot*="author"]'
             );
             const authorEl = authorCandidates.find(el => cleanText(el.textContent || '').length > 0);
-            const attrUser = cleanRedditAuthor(
+            const rawAttrUser = (
                 container.getAttribute('author') ||
                 container.getAttribute('data-author') ||
                 container.dataset?.author ||
                 ''
             );
-            const user = cleanRedditAuthor(attrUser || (authorEl ? authorEl.textContent : ''));
-            if (!user || /^(automoderator|.*-mod-bot)$/i.test(user)) return null;
+            const rawAuthorText = rawAttrUser || (authorEl ? authorEl.textContent : '');
+            const user = cleanRedditAuthor(rawAuthorText);
 
             const bodyNodes = extractOwnCommentBodyNodes(container);
             const body = bodyNodes
@@ -1016,27 +1352,54 @@
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
-            if (!body ||
-                /i am a bot, and this action was performed automatically/i.test(body) ||
-                /tl;dr generated automatically after/i.test(body)) {
+            if (body &&
+                (/i am a bot, and this action was performed automatically/i.test(body) ||
+                /tl;dr generated automatically after/i.test(body))) {
                 return null;
             }
-            if (/^\[(deleted|removed)]$/i.test(body)) return null;
+
+            const marker = getDeletedCommentMarker(user, body);
+            if (!user && !marker && !body) return null;
+            if (user && /^(automoderator|.*-mod-bot)$/i.test(user)) return null;
 
             return {
                 container,
                 id: getRedditCommentId(container),
                 parentId: getRedditCommentParentId(container),
-                user,
+                user: marker || (/^\[deleted]$/i.test(user) || !user ? '[deleted-account]' : user),
+                markerOnly: Boolean(marker),
+                isOp: !marker && (
+                    extractCommentOpFlag(container, rawAuthorText, bodyNodes) ||
+                    Boolean(postAuthor && user && user === postAuthor)
+                ),
                 timestamp: extractCommentTimestamp(container),
                 score: extractCommentScore(container),
-                body,
+                body: marker ? '' : body,
                 children: []
             };
         }
 
         function passesScoreFilter(comment) {
             return typeof comment.score === 'number' && comment.score >= minScore;
+        }
+
+        function getRenderedMarkdownText(markdown) {
+            return cleanText(String(markdown || '')
+                .replace(/```[\s\S]*?```/g, ' ')
+                .replace(/`([^`]*)`/g, '$1')
+                .replace(/!\[([^\]]*)]\([^)]+\)/g, '$1')
+                .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+                .replace(/^>\s?/gm, '')
+                .replace(/[*_~#>-]+/g, ' '));
+        }
+
+        function isTrivialLeafComment(comment) {
+            if (!trivialFilterEnabled || comment.markerOnly || comment.children.length > 0) return false;
+            if (typeof comment.score !== 'number' || comment.score > 1) return false;
+
+            const renderedText = getRenderedMarkdownText(comment.body);
+            const wordCount = renderedText ? renderedText.split(/\s+/).filter(Boolean).length : 0;
+            return renderedText.length <= 30 && wordCount <= 5;
         }
 
         function findAncestorComment(container, commentByContainer) {
@@ -1055,20 +1418,47 @@
             const userLabel = depth === 0 || !parent
                 ? comment.user
                 : `${comment.user} → ${parent.user}`;
-            const timestampLabel = comment.timestamp ? ` · ${comment.timestamp}` : '';
-            const scoreLabel = typeof comment.score === 'number' ? ` · score ${comment.score}` : '';
+            const timestampLabel = comment.timestamp &&
+                !(isDateOnlyTimestamp(comment.timestamp) &&
+                    isDateOnlyTimestamp(postTimestamp) &&
+                    comment.timestamp === postTimestamp)
+                ? ` · ${comment.timestamp}`
+                : '';
+            const scoreLabel = typeof comment.score === 'number' ? ` · ${formatRedditScore(comment.score)}` : '';
             const depthLabel = depth > 3 ? ` · d${depth}` : '';
+            const opLabel = comment.isOp ? ' · OP' : '';
             const contextLabel = comment.contextOnly ? ' · context only' : '';
-            const parts = [`${heading} ${userLabel}${timestampLabel}${scoreLabel}${depthLabel}${contextLabel}`, '', comment.body];
+            const parts = [`${heading} ${userLabel}${timestampLabel}${scoreLabel}${depthLabel}${opLabel}${contextLabel}`];
 
-            const children = scoreFilterEnabled
-                ? comment.children.filter(child => child.retainedByScoreFilter)
-                : comment.children;
+            if (!comment.markerOnly) {
+                parts.push('', comment.body);
+            }
+
+            const children = comment.children.filter(isRenderedComment);
             for (const child of children) {
-                parts.push('', renderComment(child, depth + 1, comment));
+                if (comment.markerOnly && parts.length === 1) {
+                    parts.push(renderComment(child, depth + 1, comment));
+                } else {
+                    parts.push('', renderComment(child, depth + 1, comment));
+                }
             }
 
             return parts.join('\n');
+        }
+
+        function markStructuralRetention(comment) {
+            for (const child of comment.children) {
+                markStructuralRetention(child);
+            }
+            comment.droppedByTrivialFilter = isTrivialLeafComment(comment);
+            comment.retainedByStructure = (!comment.markerOnly && !comment.droppedByTrivialFilter) ||
+                comment.children.some(child => child.retainedByStructure);
+            return comment.retainedByStructure;
+        }
+
+        function isRenderedComment(comment) {
+            return comment.retainedByStructure &&
+                (!scoreFilterEnabled || comment.retainedByScoreFilter);
         }
 
         const comments = commentContainers
@@ -1118,9 +1508,11 @@
             }
         }
 
-        const renderedRoots = scoreFilterEnabled
-            ? roots.filter(comment => comment.retainedByScoreFilter)
-            : roots;
+        for (const root of roots) {
+            markStructuralRetention(root);
+        }
+
+        const renderedRoots = roots.filter(isRenderedComment);
         if (renderedRoots.length === 0) return '';
 
         return ['## Comments', renderedRoots.map(comment => renderComment(comment)).join('\n\n---\n\n')]
@@ -1347,6 +1739,50 @@
         return fullMarkdown;
     }
 
+    function countExportedRedditComments(markdown) {
+        if (!markdown) return 0;
+        const commentsIndex = markdown.indexOf('## Comments');
+        if (commentsIndex === -1) return 0;
+        return markdown
+            .slice(commentsIndex)
+            .split('\n')
+            .filter(line => /^#{2,6}\s+/.test(line.trim()) && !/^##\s+Comments\b/.test(line.trim()))
+            .length;
+    }
+
+    function buildMetadataBlock({ title, author, published, scrapedAt, scraperSettings, redditExportedCommentCount }) {
+        const lines = [
+            '--- DOCUMENT METADATA ---',
+            `TITLE: ${cleanText(title)}`,
+            `AUTHOR: ${cleanText(author)}`
+        ];
+
+        if (published) {
+            lines.push(`PUBLISHED: ${cleanText(published)}`);
+        }
+
+        lines.push(`SCRAPED_AT: ${scrapedAt}`);
+
+        if (isRedditPage()) {
+            const subreddit = getRedditSubreddit();
+            const postScore = getRedditPostScore();
+            if (subreddit) lines.push(`SUBREDDIT: ${subreddit}`);
+            if (postScore !== null) lines.push(`POST_SCORE: ${postScore}`);
+            lines.push(`EXPORTED_COMMENT_COUNT: ${redditExportedCommentCount || 0}`);
+
+            if (scraperSettings.redditCommentScoreFilterEnabled === true) {
+                const redditCommentCount = getRedditDisplayedCommentCount();
+                if (redditCommentCount !== null) {
+                    lines.push(`REDDIT_COMMENT_COUNT: ${redditCommentCount}`);
+                }
+            }
+        }
+
+        lines.push(`SOURCE: ${window.location.href}`);
+        lines.push('--- END METADATA ---', '');
+        return `${lines.join('\n')}\n`;
+    }
+
     function normalizeLinkedInHeaderSegments(text) {
         return cleanText(text)
             .split(/\s*[·•]\s*/)
@@ -1551,16 +1987,8 @@
         const articleNode = findArticleNode();
         const { title, author } = parseMetadata();
         const published = getPublishedTimestamp();
-        const publishedMetadataLine = published ? `PUBLISHED: ${cleanText(published)}\n` : '';
-
-        const metadataBlock =
-`--- DOCUMENT METADATA ---
-TITLE: ${cleanText(title)}
-AUTHOR: ${cleanText(author)}
-${publishedMetadataLine}SOURCE: ${window.location.href}
---- END METADATA ---
-
-`;
+        const scrapedAt = formatScrapedAtTimestamp(new Date());
+        const scraperSettings = getScraperSettings();
 
         let markdown = htmlToMarkdown(articleNode, true);
         if (isRedditPage()) {
@@ -1599,6 +2027,14 @@ ${publishedMetadataLine}SOURCE: ${window.location.href}
         const duplicateTitleRegex = new RegExp(`^(---\\s*)?#\\s*${escapedTitle}\\s*`, 'm');
         markdown = markdown.replace(duplicateTitleRegex, '');
 
+        const metadataBlock = buildMetadataBlock({
+            title,
+            author,
+            published,
+            scrapedAt,
+            scraperSettings,
+            redditExportedCommentCount: isRedditPage() ? countExportedRedditComments(markdown) : 0
+        });
         const finalContent = metadataBlock + markdown.trim();
 
         // Filename with date prefix to prevent collisions

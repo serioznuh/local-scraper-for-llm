@@ -190,7 +190,8 @@ function buildContentScriptSettings(settings) {
   return {
     version: settings.version,
     redditCommentScoreFilterEnabled: settings.redditCommentScoreFilterEnabled,
-    redditCommentMinScore: settings.redditCommentMinScore
+    redditCommentMinScore: settings.redditCommentMinScore,
+    redditTrivialCommentFilterEnabled: settings.redditTrivialCommentFilterEnabled
   };
 }
 

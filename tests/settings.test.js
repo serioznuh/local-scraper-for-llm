@@ -5,23 +5,25 @@ const settings = require('../settings.js');
 
 test('normalizes missing settings to conservative defaults', () => {
   assert.deepEqual(settings.normalizeSettings(), {
-    version: 2,
+    version: 3,
     savePath: '',
     clipboardMode: 'off',
     openAfterSave: false,
     redditCommentScoreFilterEnabled: false,
-    redditCommentMinScore: 2
+    redditCommentMinScore: 2,
+    redditTrivialCommentFilterEnabled: false
   });
 });
 
 test('migrates legacy savePath while keeping optional actions off', () => {
   assert.deepEqual(settings.normalizeSettings(null, '/Users/me/Scrapes'), {
-    version: 2,
+    version: 3,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'off',
     openAfterSave: false,
     redditCommentScoreFilterEnabled: false,
-    redditCommentMinScore: 2
+    redditCommentMinScore: 2,
+    redditTrivialCommentFilterEnabled: false
   });
 });
 
@@ -30,12 +32,13 @@ test('migrates legacy copy boolean to markdown clipboard mode', () => {
     savePath: '/Users/me/Scrapes',
     copyToClipboard: true
   }), {
-    version: 2,
+    version: 3,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'markdown',
     openAfterSave: false,
     redditCommentScoreFilterEnabled: false,
-    redditCommentMinScore: 2
+    redditCommentMinScore: 2,
+    redditTrivialCommentFilterEnabled: false
   });
 });
 
@@ -46,14 +49,16 @@ test('normalizes clipboard mode, booleans, savePath, and Reddit score filter', (
     clipboardMode: 'file',
     openAfterSave: 1,
     redditCommentScoreFilterEnabled: 1,
-    redditCommentMinScore: ' 4 '
+    redditCommentMinScore: ' 4 ',
+    redditTrivialCommentFilterEnabled: 1
   }), {
-    version: 2,
+    version: 3,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'file',
     openAfterSave: true,
     redditCommentScoreFilterEnabled: true,
-    redditCommentMinScore: 4
+    redditCommentMinScore: 4,
+    redditTrivialCommentFilterEnabled: true
   });
 });
 
@@ -83,12 +88,13 @@ test('mergeSettings preserves Reddit score filter settings', () => {
   }, {
     clipboardMode: 'markdown'
   }), {
-    version: 2,
+    version: 3,
     savePath: '/Users/me/Scrapes',
     clipboardMode: 'markdown',
     openAfterSave: false,
     redditCommentScoreFilterEnabled: true,
-    redditCommentMinScore: 5
+    redditCommentMinScore: 5,
+    redditTrivialCommentFilterEnabled: false
   });
 });
 

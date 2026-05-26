@@ -58,7 +58,8 @@ fields. Clipboard settings are off by default.
 
 `chrome.storage.local` stores a versioned local settings object with `savePath`,
 `clipboardMode`, `openAfterSave`, `redditCommentScoreFilterEnabled`, and
-`redditCommentMinScore`. Keep `DEFAULT_SAVE_DIR` empty in committed code.
+`redditCommentMinScore`, and `redditTrivialCommentFilterEnabled`. Keep
+`DEFAULT_SAVE_DIR` empty in committed code.
 
 Do not commit local save paths or machine-specific runtime settings.
 
