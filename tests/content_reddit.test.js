@@ -195,6 +195,79 @@ function redditFixtureDocument() {
   ]));
 }
 
+function redditPostWithPromotedMediaDocument() {
+  return new FakeDocument(el('body', {}, [
+    el('main', {}, [
+      el('shreddit-post', {}, [
+        el('h1', {}, ['So I stumbled across this prompt hack']),
+        el('p', {}, ['After Claude finishes coding a feature, run this.']),
+        el('figure', {}, [
+          el('img', {
+            src: 'https://i.redd.it/post-image.jpeg',
+            alt: 'Post diagram'
+          }, [])
+        ])
+      ]),
+      el('div', { 'data-testid': 'placement' }, [
+        el('span', {}, ['Promotion']),
+        el('figure', {}, [
+          el('img', {
+            src: 'https://external-preview.redd.it/ad-preview.jpeg',
+            alt: 'Clickable image which will reveal the video player: This agent can source, rank, and contact candidates for technical roles. Built by the team at Airtable.'
+          }, [])
+        ])
+      ]),
+      el('textarea', {}, []),
+      el('h2', {}, ['Comments Section']),
+      el('shreddit-comment', { author: 'enthusiast_bob', thingid: 't1_root', created: '5mo ago', score: '3' }, [
+        el('div', { id: 't1_root-comment-rtjson-content', slot: 'comment' }, [
+          el('p', {}, ['Root comment body only.'])
+        ])
+      ])
+    ])
+  ]));
+}
+
+function redditLazyTailCommentsDocument() {
+  const main = el('main', {}, [
+    el('h1', {}, ['So I stumbled across this prompt hack']),
+    el('p', {}, ['After Claude finishes coding a feature, run this.']),
+    el('textarea', {}, []),
+    el('h2', {}, ['Comments Section']),
+    el('shreddit-comment', { author: 'Seninut', thingid: 't1_seninut', created: '5mo ago', score: '1' }, [
+      el('div', { id: 't1_seninut-comment-rtjson-content', slot: 'comment' }, [
+        el('p', {}, ['Why do you not trust it? It is not lying, try asking.'])
+      ])
+    ])
+  ]);
+  const document = new FakeDocument(el('body', {}, [main]));
+  document.loadLazyTailComments = () => {
+    if (document.lazyTailLoaded) return;
+    document.lazyTailLoaded = true;
+    main.append(el('shreddit-comment', {
+      author: 'Own_Professional6525',
+      thingid: 't1_own_professional',
+      created: '5mo ago',
+      score: '1'
+    }, [
+      el('div', { id: 't1_own_professional-comment-rtjson-content', slot: 'comment' }, [
+        el('p', {}, ['This is a great reminder that thorough review is still key.'])
+      ])
+    ]));
+    main.append(el('shreddit-comment', {
+      author: 'False_Care_2957',
+      thingid: 't1_false_care',
+      created: '5mo ago',
+      score: '1'
+    }, [
+      el('div', { id: 't1_false_care-comment-rtjson-content', slot: 'comment' }, [
+        el('p', {}, ['I usually just do this with Codex on top of the first couple of passes.'])
+      ])
+    ]));
+  };
+  return document;
+}
+
 function redditVisibleTextOnlyDocument() {
   const body = el('body', {}, [
     el('main', {}, [
@@ -387,7 +460,11 @@ async function runContentScript(document, scraperSettings = {}) {
       getComputedStyle() {
         return { display: 'block', visibility: 'visible' };
       },
-      scrollBy() {},
+      scrollBy() {
+        if (typeof document.loadLazyTailComments === 'function') {
+          document.loadLazyTailComments();
+        }
+      },
       scrollTo() {},
       setInterval(callback) {
         return setInterval(callback, 0);
@@ -411,6 +488,29 @@ test('Reddit fallback extracts comments after the current Comments Section headi
   assert.match(result.content, /Try the local review plugin against your git diff/);
   assert.match(result.content, /## soopypoopy132/);
   assert.match(result.content, /would this not take a crazy amount of tokens/);
+});
+
+test('Reddit lead skips promoted media outside the current post', async () => {
+  const result = await runContentScript(redditPostWithPromotedMediaDocument());
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /After Claude finishes coding a feature/);
+  assert.match(result.content, /!\[Post diagram]\(https:\/\/i\.redd\.it\/post-image\.jpeg\)/);
+  assert.match(result.content, /## Comments/);
+  assert.doesNotMatch(result.content, /Airtable/);
+  assert.doesNotMatch(result.content, /external-preview\.redd\.it\/ad-preview/);
+});
+
+test('Reddit extraction prompts lazy tail comments before exporting', async () => {
+  const result = await runContentScript(redditLazyTailCommentsDocument());
+
+  assert.equal(result.error, undefined);
+  assert.match(result.content, /### Seninut · 5mo ago · score 1/);
+  assert.match(result.content, /Why do you not trust it/);
+  assert.match(result.content, /### Own_Professional6525 · 5mo ago · score 1/);
+  assert.match(result.content, /thorough review is still key/);
+  assert.match(result.content, /### False_Care_2957 · 5mo ago · score 1/);
+  assert.match(result.content, /Codex on top of the first couple of passes/);
 });
 
 test('Reddit fallback extracts comments from visible page text when comment DOM is unavailable', async () => {

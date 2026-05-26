@@ -117,6 +117,15 @@
         return matches;
     }
 
+    function getRedditCurrentPostContainer(titleEl, root = document) {
+        if (!isRedditPage() || !titleEl) return null;
+
+        return queryAllIncludingShadow(
+            root,
+            'shreddit-post, [slot="post"], article, [data-testid="post-container"]'
+        ).find(el => el.contains(titleEl)) || null;
+    }
+
     function isRedditAvatarImage(node, src = '', alt = '') {
         if (!node) return false;
         const normalizedAlt = normalizeText(alt || node.getAttribute('alt') || '');
@@ -374,16 +383,31 @@
         });
     }
 
-    function promptRedditCommentLoading() {
+    function getRedditCommentLoadSignature() {
+        return getVisibleRedditCommentContainers(document)
+            .map(container => {
+                return getRedditCommentId(container) ||
+                    `${cleanRedditAuthor(container.getAttribute('author') || '')}:${cleanText(container.innerText || container.textContent || '').slice(0, 80)}`;
+            })
+            .filter(Boolean)
+            .join('|');
+    }
+
+    function promptRedditCommentLoading(options = {}) {
         if (!isRedditPage()) return;
 
+        const { fromLastComment = false } = options;
+        const visibleComments = getVisibleRedditCommentContainers(document);
+        const lastComment = visibleComments[visibleComments.length - 1] || null;
         const commentStart = getRedditCommentStart(document);
         const commentTree = queryFirstIncludingShadow(
             document,
             'shreddit-comment-tree, [data-testid="comment-tree"], [slot="comments"]'
         );
         const firstComment = queryFirstIncludingShadow(document, getRedditCommentContainerSelector());
-        const targets = [commentStart, commentTree, firstComment].filter(Boolean);
+        const targets = fromLastComment && lastComment
+            ? [lastComment]
+            : [commentStart, commentTree, firstComment].filter(Boolean);
 
         for (const target of targets) {
             if (typeof target.scrollIntoView === 'function') {
@@ -400,6 +424,25 @@
             } catch (e) {
                 window.scrollBy(0, scrollDistance);
             }
+        }
+    }
+
+    async function promptRedditLazyTailCommentLoading() {
+        if (!isRedditPage() || !hasHydratedRedditComments(document)) return;
+
+        let previousSignature = getRedditCommentLoadSignature();
+        if (!previousSignature) return;
+
+        for (let pass = 0; pass < 6; pass++) {
+            promptRedditCommentLoading({ fromLastComment: true });
+            const changed = await waitForCondition(
+                () => getRedditCommentLoadSignature() !== previousSignature,
+                1200,
+                250
+            );
+            const nextSignature = getRedditCommentLoadSignature();
+            if (!changed || nextSignature === previousSignature) break;
+            previousSignature = nextSignature;
         }
     }
 
@@ -436,6 +479,7 @@
             promptRedditCommentLoading();
             await waitForCondition(hasCommentBodies, 3500, 250);
         }
+        await promptRedditLazyTailCommentLoading();
 
         return () => {
             if (typeof window.scrollTo === 'function') {
@@ -803,12 +847,13 @@
         if (!titleEl || !mainEl.contains(titleEl)) return '';
 
         const blockTags = new Set(['p', 'blockquote', 'pre', 'ul', 'ol', 'figure', 'img']);
-        const commentStart = getRedditCommentStart(mainEl);
+        const leadRoot = getRedditCurrentPostContainer(titleEl, mainEl) || mainEl;
+        const commentStart = getRedditCommentStart(leadRoot);
         const blocks = [];
         let started = false;
         const orderedElements = [];
 
-        forEachElementIncludingShadow(mainEl, el => {
+        forEachElementIncludingShadow(leadRoot, el => {
             orderedElements.push(el);
         });
 
