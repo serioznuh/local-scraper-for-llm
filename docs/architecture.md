@@ -40,13 +40,14 @@ install_host.sh
 2. The background service worker loads normalized settings.
 3. The worker opens Settings and shows an error badge if no save directory is
    configured.
-4. The worker injects `content.js` with `chrome.scripting.executeScript`.
-5. The injected script returns `{ content, filename, wordCount }`.
-6. The background worker sends a native message to `com.scraper_llm.host`.
-7. The Python host creates the target directory if needed, writes the file,
+4. The worker injects the small content-script settings payload.
+5. The worker injects `content.js` with `chrome.scripting.executeScript`.
+6. The injected script returns `{ content, filename, wordCount }`.
+7. The background worker sends a native message to `com.scraper_llm.host`.
+8. The Python host creates the target directory if needed, writes the file,
    copies Markdown text if `clipboardMode` is `markdown`, copies the file if
    `clipboardMode` is `file`, and opens it if `openAfterSave` is enabled.
-8. Success, warning, or error returns through the toolbar badge and tooltip.
+9. Success, warning, or error returns through the toolbar badge and tooltip.
    Only save-directory errors are stored for display in the options page.
 
 ## Boundaries

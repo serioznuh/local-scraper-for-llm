@@ -62,6 +62,28 @@
         return window.location.hostname.includes('reddit.com');
     }
 
+    function normalizeInjectedBoolean(value) {
+        return value === true || value === 1;
+    }
+
+    function normalizeInjectedInteger(value, fallback) {
+        if (typeof value === 'string' && !value.trim()) return fallback;
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const number = Number(value);
+        if (!Number.isFinite(number)) return fallback;
+        return Math.trunc(number);
+    }
+
+    function getScraperSettings() {
+        const source = window.__scraperSettings && typeof window.__scraperSettings === 'object'
+            ? window.__scraperSettings
+            : {};
+        return {
+            redditCommentScoreFilterEnabled: normalizeInjectedBoolean(source.redditCommentScoreFilterEnabled),
+            redditCommentMinScore: normalizeInjectedInteger(source.redditCommentMinScore, 2)
+        };
+    }
+
     function isLinkedInJobPage() {
         return window.location.hostname.includes('linkedin.com') &&
             /^\/jobs\/view\/?/i.test(window.location.pathname);
@@ -850,13 +872,15 @@
         return matches >= Math.min(2, probeBlocks.length);
     }
 
-    function extractRedditCommentsMarkdown() {
+    function extractRedditCommentsMarkdown(scraperSettings = getScraperSettings()) {
         if (!isRedditPage()) return '';
         const rootEl = document;
         const titleEl = document.querySelector('h1');
         const commentContainerSelector = getRedditCommentContainerSelector();
         const commentContainers = getVisibleRedditCommentContainers(rootEl)
             .filter(el => !titleEl || !el.contains(titleEl));
+        const scoreFilterEnabled = scraperSettings.redditCommentScoreFilterEnabled === true;
+        const minScore = scraperSettings.redditCommentMinScore;
 
         function queryWithinComment(container, selector) {
             return queryAllIncludingShadow(container, selector)
@@ -865,6 +889,21 @@
 
         function filterOutNestedNodes(nodes) {
             return nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
+        }
+
+        function parseScore(value) {
+            if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) return null;
+            const score = Number.parseInt(value.trim(), 10);
+            return Number.isFinite(score) ? score : null;
+        }
+
+        function extractCommentScore(container) {
+            const attrScore = parseScore(container.getAttribute('score'));
+            if (attrScore !== null) return attrScore;
+
+            const actionRow = queryWithinComment(container, 'shreddit-comment-action-row[score]')
+                .find(el => parseScore(el.getAttribute('score')) !== null);
+            return actionRow ? parseScore(actionRow.getAttribute('score')) : null;
         }
 
         function extractCommentTimestamp(container) {
@@ -945,9 +984,14 @@
                 parentId: getRedditCommentParentId(container),
                 user,
                 timestamp: extractCommentTimestamp(container),
+                score: extractCommentScore(container),
                 body,
                 children: []
             };
+        }
+
+        function passesScoreFilter(comment) {
+            return typeof comment.score === 'number' && comment.score >= minScore;
         }
 
         function findAncestorComment(container, commentByContainer) {
@@ -965,11 +1009,17 @@
             const heading = '#'.repeat(headingLevel);
             const userLabel = depth === 0 || !parent
                 ? comment.user
-                : `Reply to ${parent.user}: ${comment.user}`;
+                : `${comment.user} → ${parent.user}`;
             const timestampLabel = comment.timestamp ? ` · ${comment.timestamp}` : '';
-            const parts = [`${heading} ${userLabel}${timestampLabel}`, '', comment.body];
+            const scoreLabel = typeof comment.score === 'number' ? ` · score ${comment.score}` : '';
+            const depthLabel = depth > 3 ? ` · d${depth}` : '';
+            const contextLabel = comment.contextOnly ? ' · context only' : '';
+            const parts = [`${heading} ${userLabel}${timestampLabel}${scoreLabel}${depthLabel}${contextLabel}`, '', comment.body];
 
-            for (const child of comment.children) {
+            const children = scoreFilterEnabled
+                ? comment.children.filter(child => child.retainedByScoreFilter)
+                : comment.children;
+            for (const child of children) {
                 parts.push('', renderComment(child, depth + 1, comment));
             }
 
@@ -995,13 +1045,40 @@
             const parent = parentById || (parentContainer ? commentByContainer.get(parentContainer) : null);
 
             if (parent && parent !== comment) {
+                comment.parent = parent;
                 parent.children.push(comment);
             } else {
+                comment.parent = null;
                 roots.push(comment);
             }
         }
 
-        return ['## Comments', roots.map(comment => renderComment(comment)).join('\n\n---\n\n')]
+        if (scoreFilterEnabled) {
+            for (const comment of comments) {
+                comment.passesScoreFilter = passesScoreFilter(comment);
+                comment.retainedByScoreFilter = false;
+                comment.contextOnly = false;
+            }
+
+            for (const comment of comments.filter(item => item.passesScoreFilter)) {
+                let current = comment;
+                while (current) {
+                    current.retainedByScoreFilter = true;
+                    current = current.parent;
+                }
+            }
+
+            for (const comment of comments) {
+                comment.contextOnly = comment.retainedByScoreFilter && !comment.passesScoreFilter;
+            }
+        }
+
+        const renderedRoots = scoreFilterEnabled
+            ? roots.filter(comment => comment.retainedByScoreFilter)
+            : roots;
+        if (renderedRoots.length === 0) return '';
+
+        return ['## Comments', renderedRoots.map(comment => renderComment(comment)).join('\n\n---\n\n')]
             .filter(Boolean)
             .join('\n\n')
             .trim();
@@ -1210,10 +1287,13 @@
     }
 
     function buildRedditMarkdown(fullMarkdown) {
+        const scraperSettings = getScraperSettings();
         const redditLead = extractRedditLeadMarkdown();
-        const redditComments = extractRedditCommentsMarkdown() ||
-            extractRedditCommentsFromMarkdown(fullMarkdown) ||
-            extractRedditCommentsFromVisibleText(document.body?.innerText || '');
+        const redditComments = extractRedditCommentsMarkdown(scraperSettings) ||
+            (scraperSettings.redditCommentScoreFilterEnabled ? '' : (
+                extractRedditCommentsFromMarkdown(fullMarkdown) ||
+                extractRedditCommentsFromVisibleText(document.body?.innerText || '')
+            ));
 
         if (redditLead || redditComments) {
             return [redditLead, redditComments].filter(Boolean).join('\n\n').trim();

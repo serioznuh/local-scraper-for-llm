@@ -176,7 +176,20 @@ test('icon click scrapes the tab and saves through the native host', async () =>
   mock.actionListeners[0]({ id: 34 });
   await flush();
 
-  assert.deepEqual(plain(mock.calls.scripts[0]), {
+  assert.equal(mock.calls.scripts.length, 2);
+  assert.equal(typeof mock.calls.scripts[0].func, 'function');
+  assert.deepEqual(plain({
+    target: mock.calls.scripts[0].target,
+    args: mock.calls.scripts[0].args
+  }), {
+    target: { tabId: 34 },
+    args: [{
+      version: 2,
+      redditCommentScoreFilterEnabled: false,
+      redditCommentMinScore: 2
+    }]
+  });
+  assert.deepEqual(plain(mock.calls.scripts[1]), {
     target: { tabId: 34 },
     files: ['content.js']
   });

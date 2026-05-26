@@ -32,6 +32,25 @@ After implementation:
 2. Run `npm run check`.
 3. When possible, reload the unpacked extension and test one real page in Chrome.
 
+For Reddit comment score-filter changes, do not hand the change to the user for
+manual testing until an agent has also run one real Chrome extension smoke test:
+
+1. Open the Page Scraper options page from the installed unpacked extension.
+2. Temporarily set the save directory to a local test folder outside the repo.
+3. Disable clipboard and open-after-save side effects for the smoke test.
+4. Enable Reddit score filtering with minimum score `2`.
+5. Scrape a live Reddit thread with nested replies through the toolbar action.
+6. Inspect the saved Markdown and confirm:
+   - a below-threshold ancestor is retained with `context only`
+   - the above-threshold reply below that ancestor is retained
+   - unrelated below-threshold sibling branches are absent
+   - below-threshold descendants after retained replies are absent unless needed
+     as context for another retained reply
+   - retained replies use compact `author → parent` headings, with `dN` only for
+     replies deeper than the Markdown heading cap
+   - no `score 0` headings appear
+7. Restore the user's previous settings before handing off for user testing.
+
 ## Action, Options, Background, And Native Host Changes
 
 Reload the unpacked extension in Chrome and verify:

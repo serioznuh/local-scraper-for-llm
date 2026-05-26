@@ -182,6 +182,18 @@ function saveScrapeResult(data, settings) {
   });
 }
 
+function applyScraperSettings(settings) {
+  globalThis.__scraperSettings = settings;
+}
+
+function buildContentScriptSettings(settings) {
+  return {
+    version: settings.version,
+    redditCommentScoreFilterEnabled: settings.redditCommentScoreFilterEnabled,
+    redditCommentMinScore: settings.redditCommentMinScore
+  };
+}
+
 function scrapeTab(tab) {
   loadSettings((settings) => {
     if (!settings.savePath) {
@@ -200,20 +212,31 @@ function scrapeTab(tab) {
     startActionFeedback();
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ['content.js']
+      func: applyScraperSettings,
+      args: [buildContentScriptSettings(settings)]
     }, (results) => {
       if (chrome.runtime.lastError) {
         reportError('Could not read this page. ' + trimTerminalPeriod(chrome.runtime.lastError.message));
         return;
       }
 
-      const data = results?.[0]?.result;
-      if (!data || data.error) {
-        reportError('Could not extract content. Try a regular web page with readable text');
-        return;
-      }
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      }, (contentResults) => {
+        if (chrome.runtime.lastError) {
+          reportError('Could not read this page. ' + trimTerminalPeriod(chrome.runtime.lastError.message));
+          return;
+        }
 
-      saveScrapeResult(data, settings);
+        const data = contentResults?.[0]?.result;
+        if (!data || data.error) {
+          reportError('Could not extract content. Try a regular web page with readable text');
+          return;
+        }
+
+        saveScrapeResult(data, settings);
+      });
     });
   });
 }

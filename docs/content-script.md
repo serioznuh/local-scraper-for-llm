@@ -53,11 +53,21 @@ Exports keep:
 - post date when available
 - comment author
 - comment date when available
+- comment score when available on Reddit's structured comment elements
 - deleted-author comments with visible bodies
 - nested reply structure
 
-Parallel replies under one parent remain siblings in Markdown. Absolute Reddit
-timestamps use `YYYY-MM-DD`.
+Parallel replies under one parent remain siblings in Markdown. Structured reply
+headings use `author → parent`; Markdown heading depth is still used as the
+visual nesting signal, and replies deeper than that heading cap add a compact
+depth marker such as `d4`. Absolute Reddit timestamps use `YYYY-MM-DD`.
+
+When the optional Reddit comment score filter is enabled, a structured comment
+is exported if its numeric score meets the configured minimum or if it is an
+ancestor needed to understand a retained reply. Below-threshold and unknown-score
+ancestors are labeled `context only`; unrelated low-score branches are dropped.
+Unscored Markdown or visible-text comment fallbacks are skipped because they
+cannot support reliable score filtering.
 
 ## LinkedIn Job Behavior
 

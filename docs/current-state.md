@@ -12,14 +12,16 @@ output, or packaged runtime artifact in the repository.
 The extension runs on demand:
 
 1. The user clicks the Page Scraper toolbar icon.
-2. `background.js` loads settings and injects `content.js` into the active tab.
-3. `content.js` extracts Markdown and returns it to the background worker.
-4. `background.js` sends the Markdown and enabled output actions to the native
+2. `background.js` loads settings and injects the small content-script settings
+   payload into the active tab.
+3. `background.js` injects `content.js` into the active tab.
+4. `content.js` extracts Markdown and returns it to the background worker.
+5. `background.js` sends the Markdown and enabled output actions to the native
    messaging host.
-5. `native-host/save_file.py` writes the file to the configured local directory
+6. `native-host/save_file.py` writes the file to the configured local directory
    and can copy Markdown text, copy the saved file, or open it through macOS when
    enabled.
-6. The toolbar badge and tooltip report progress, success, warnings, and errors.
+7. The toolbar badge and tooltip report progress, success, warnings, and errors.
    Save-directory errors open Settings automatically.
 
 ## Active Behavior
@@ -50,15 +52,23 @@ back to `Unknown Author`.
 ## Reddit State
 
 Reddit extraction keeps self-post bodies, post dates when available, comment
-authors, comment dates when available, deleted-author comments with visible
-bodies, and nested reply structure. Absolute Reddit timestamps are formatted as
-date-only `YYYY-MM-DD` values.
+authors, comment dates when available, comment scores when Reddit exposes them
+on structured comment elements, deleted-author comments with visible bodies, and
+nested reply structure. Absolute Reddit timestamps are formatted as date-only
+`YYYY-MM-DD` values. Structured replies use compact headings in the form
+`author → parent`; once Markdown heading depth is capped, deeper replies add a
+compact depth marker such as `d4`.
 
 The scraper waits for hydrated comments and prompts comment loading by scrolling
 near the comment section. It avoids exporting Reddit avatar/profile images and
 filters common AutoModerator/bot boilerplate. When Reddit comments are visible
 as rendered page text but not available through structured comment elements, a
 flat visible-text fallback keeps loaded comments and stops before sidebar chrome.
+An optional Reddit-only score filter can keep comments at or above a configured
+minimum score. When that filter is enabled, below-threshold or unknown-score
+ancestors are retained only when they provide context for a kept reply and are
+labeled `context only`; unrelated low-score branches and unscored fallback
+comments are not used.
 
 ## LinkedIn Job State
 
@@ -69,9 +79,10 @@ LinkedIn chrome when possible.
 ## Configuration State
 
 Settings live as a versioned `settings` object in `chrome.storage.local`.
-Supported keys are `savePath`, `clipboardMode`, and `openAfterSave`. The
-committed `DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save
-paths are not stored in the repository.
+Supported keys are `savePath`, `clipboardMode`, `openAfterSave`,
+`redditCommentScoreFilterEnabled`, and `redditCommentMinScore`. The committed
+`DEFAULT_SAVE_DIR` in `background.js` must stay empty so local save paths are not
+stored in the repository.
 
 The extension has no popup. The toolbar icon is the scrape trigger. The options
 page owns durable settings, folder selection, and save-directory error recovery.

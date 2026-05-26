@@ -122,7 +122,8 @@
       margin-block-start: var(--space-2);
     }
 
-    input[type="text"] {
+    input[type="text"],
+    input[type="number"] {
       width: 100%;
       min-height: 40px;
       padding: 8px 10px;
@@ -134,13 +135,20 @@
       font-size: 14px;
     }
 
-    input[type="text"]:focus {
+    input[type="text"]:focus,
+    input[type="number"]:focus {
       outline: none;
     }
 
-    input[type="text"]:focus-visible {
+    input[type="text"]:focus-visible,
+    input[type="number"]:focus-visible {
       border-color: var(--focus);
       box-shadow: 0 0 0 3px oklch(62% 0.17 255 / 18%);
+    }
+
+    input[type="number"]:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
     }
 
     .banner {
@@ -225,7 +233,7 @@
       align-items: start;
     }
 
-    .choice input {
+    .choice > input {
       width: 16px;
       height: 16px;
       margin: 3px 0 0;
@@ -236,10 +244,24 @@
       margin: 0;
     }
 
-    .separated-choice {
-      margin-block-start: var(--space-2);
-      padding-block-start: var(--space-4);
-      border-block-start: 1px solid var(--border);
+    .score-filter-choice > input {
+      margin-block-start: 4px;
+    }
+
+    .score-filter-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .score-filter-line input[type="number"] {
+      width: 64px;
+      min-height: 24px;
+      height: 24px;
+      padding-block: 2px;
+      font-size: 13px;
+      line-height: 1.2;
     }
 
     .actions {
@@ -387,11 +409,30 @@
           </div>
         </fieldset>
 
-        <div class="choice separated-choice">
-          <input id="openAfterSave" name="openAfterSave" type="checkbox">
+        <fieldset>
+          <legend>Saved File</legend>
+
+          <div class="choice">
+            <input id="openAfterSave" name="openAfterSave" type="checkbox">
+            <div>
+              <label for="openAfterSave">Open saved Markdown file</label>
+              <p class="hint">Opens the saved file with the default app for `.md` files</p>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+
+      <section aria-labelledby="reddit-comments-heading">
+        <h2 id="reddit-comments-heading">Reddit Comments</h2>
+
+        <div class="choice score-filter-choice">
+          <input id="redditCommentScoreFilterEnabled" name="redditCommentScoreFilterEnabled" type="checkbox">
           <div>
-            <label for="openAfterSave">Open saved Markdown file</label>
-            <p class="hint">Opens the saved file with the default app for `.md` files</p>
+            <div class="score-filter-line">
+              <label for="redditCommentScoreFilterEnabled">Filter by minimum comment score</label>
+              <input id="redditCommentMinScore" name="redditCommentMinScore" type="number" step="1" inputmode="numeric" aria-label="Minimum score">
+            </div>
+            <p class="hint">Uses scores already on the loaded page</p>
           </div>
         </div>
       </section>

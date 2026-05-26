@@ -57,10 +57,14 @@ fields. Clipboard settings are off by default.
 ## Local Storage
 
 `chrome.storage.local` stores a versioned local settings object with `savePath`,
-`clipboardMode`, and `openAfterSave`. Keep `DEFAULT_SAVE_DIR` empty in
-committed code.
+`clipboardMode`, `openAfterSave`, `redditCommentScoreFilterEnabled`, and
+`redditCommentMinScore`. Keep `DEFAULT_SAVE_DIR` empty in committed code.
 
 Do not commit local save paths or machine-specific runtime settings.
+
+The Reddit comment score filter reads scores already exposed in the active
+Reddit tab DOM. It does not add host permissions, Reddit API calls, cookie
+access, or external network requests.
 
 ## Native Messaging Boundary
 
