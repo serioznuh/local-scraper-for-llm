@@ -13,6 +13,9 @@ npm run check
 
 The lint script is intended to stay sandbox-friendly. It checks the Python
 native host syntax in memory instead of writing `.pyc` bytecode cache files.
+The test script includes a docs contract check for required AGENTS sections,
+owner-doc registration, line budgets, local Markdown links, and current-state
+history separation.
 
 Also inspect the docs diff for private paths, scrape outputs, screenshots, API
 keys, tokens, cookies, browser profile data, and accidental code changes.

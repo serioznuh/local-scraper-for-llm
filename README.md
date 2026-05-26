@@ -171,20 +171,18 @@ syntax, and Git whitespace.
 
 ## Change Workflow
 
-Use feature branches and GitHub PRs for meaningful changes. PRs are the default
-tracking artifact: they make the exact diff visible, keep history reviewable,
-and provide a place for follow-up questions.
-
-PRs are not a manual approval gate unless you explicitly ask Codex to keep one
-open. After successful verification, Codex should open a ready PR, merge it,
-push `main`, and clean up the feature branch by default. Codex-created PR titles
-start with `[codex]`.
+Meaningful changes use short-lived feature branches and PRs. Codex-created PR
+titles start with `[codex]` and include summary plus verification notes. After
+successful verification, Codex may merge and return to `main` unless you ask it
+to keep the PR open.
 
 Safety-sensitive actions still require explicit approval before the action
 itself, including destructive Git operations, force pushes, permission expansion,
 or anything that could expose or modify private data.
 
 ## More Documentation
+
+Agent-specific operating rules live in [AGENTS.md](AGENTS.md).
 
 - [docs/current-state.md](docs/current-state.md) - active project state.
 - [docs/architecture.md](docs/architecture.md) - component boundaries and flow.
