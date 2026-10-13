@@ -24,7 +24,8 @@ service, and no network calls from the extension.
 
 - macOS
 - Google Chrome
-- Python 3 available as `python3` or `/usr/bin/python3`
+- Python 3.11+ managed by [uv](https://docs.astral.sh/uv/) (`uv python install 3.14`);
+  without uv the installer falls back to `python3` or `/usr/bin/python3`
 - Node/npm for local verification commands
 
 ## Installation

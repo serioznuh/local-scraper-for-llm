@@ -21,7 +21,8 @@ Run:
 
 The installer:
 
-1. Finds Python 3.
+1. Finds Python 3: a uv-managed 3.11+ first (`uv python find`), then `python3`,
+   then `/usr/bin/python3`.
 2. Copies `native-host/save_file.py` to
    `$HOME/.local/share/scraper-llm-native-host/save_file.py`.
 3. Creates a wrapper at `$HOME/.local/bin/scraper-llm-native-host`.

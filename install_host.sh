@@ -21,7 +21,17 @@ EXTENSION_ID="$1"
 HOST_NAME="com.scraper_llm.host"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST_SCRIPT="$SCRIPT_DIR/native-host/save_file.py"
-PYTHON_BIN="$(command -v python3 || true)"
+# Prefer a uv-managed Python: macOS's own /usr/bin/python3 is 3.9, which no
+# longer gets upstream fixes. uv returns a minor-version path, so patch
+# upgrades (uv python upgrade) do not break the wrapper below.
+PYTHON_BIN=""
+if command -v uv >/dev/null 2>&1; then
+    PYTHON_BIN="$(uv python find --no-project '>=3.11' 2>/dev/null || true)"
+fi
+
+if [ -z "$PYTHON_BIN" ]; then
+    PYTHON_BIN="$(command -v python3 || true)"
+fi
 
 if [ -z "$PYTHON_BIN" ] && [ -x /usr/bin/python3 ]; then
     PYTHON_BIN="/usr/bin/python3"
